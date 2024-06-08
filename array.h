@@ -34,6 +34,7 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 
 
@@ -59,38 +60,62 @@
     }
 
 /*
- * Appends the element to the dynamic array pointed at by array.
+ * Computes the size, in bytes, of the dynamic array's elements.
+ *
+ * array - ARRAY_OF(type)*.
  */
-#define array_append(array, element)                                                \
-    {                                                                               \
-        if ((array)->count >= (array)->capacity) {                                  \
-            (array)->capacity = 0 == (array)->capacity                              \
-                              ? ARRAY_INITIAL_CAPACITY                              \
-                              : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity;      \
-            (array)->elements = realloc(                                            \
-                 (array)->elements,                                                 \
-                 (array)->capacity * sizeof(*(array)->elements)                     \
-            );                                                                      \
-            if (NULL == (array)->elements) {                                        \
-                (void)fputs(                                                        \
-                     "Error: unable to reallocate dynamic array; buy more RAM lol", \
-                     stderr                                                         \
-                );                                                                  \
-                exit(1);                                                            \
-            };                                                                      \
-        }                                                                           \
-        (array)->elements[(array)->count++] = (element);                            \
+#define array_element_byte_size(array) (sizeof(*(array)->elements))
+
+/*
+ * Computes the size, in bytes, of the occupied portion of the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ */
+#define array_occupied_byte_size(array) ((array)->count * array_element_byte_size((array)))
+
+/*
+ * Computes the size, in bytes, of the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ */
+#define array_byte_size(array) ((array)->capacity * array_element_byte_size((array)))
+
+/*
+ * Appends an element to the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ * element - type.
+ */
+#define array_append(array, element)                                                  \
+    {                                                                                 \
+        if ((array)->count >= (array)->capacity) {                                    \
+            (array)->capacity = 0 == (array)->capacity                                \
+                              ? ARRAY_INITIAL_CAPACITY                                \
+                              : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity;        \
+            (array)->elements = realloc((array)->elements, array_byte_size((array))); \
+            if (NULL == (array)->elements) {                                          \
+                (void)fputs(                                                          \
+                     "Error: Unable to reallocate dynamic array; buy more RAM lol",   \
+                     stderr                                                           \
+                );                                                                    \
+                exit(1);                                                              \
+            };                                                                        \
+        }                                                                             \
+        (array)->elements[(array)->count++] = (element);                              \
     }
 
 /*
- * Fetches the element at the given index in the dynamic array pointed at by
- * array.
+ * Fetches the element at the given index in the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ * index - size_t.
  */
-#define array_at(array, index) (array)->elements[index]
+#define array_at(array, index) (array)->elements[(index)]
 
 /*
- * Frees the memory allocated by the dynamic array pointed at by array and
- * resets it to an empty state.
+ * Frees the memory allocated by the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
  */
 #define array_free(array)                       \
     {                                           \
@@ -98,4 +123,48 @@
         (array)->elements = NULL;               \
         (array)->count    = 0;                  \
         (array)->capacity = 0;                  \
+    }
+
+/*
+ * Resizes the dynamic array to the given size. If the size specified is smaller
+ * than the array's current size, the array will be truncated.
+ * Has no effect if the current and specified size are the same.
+ *
+ * array - ARRAY_OF(type)*.
+ * size - size_t.
+ */
+#define array_resize(array, size)                                           \
+    {                                                                       \
+        if ((size) == (array)->capacity)                                    \
+            goto larray_resize_end;                                         \
+                                                                            \
+        void* new_elements = malloc((size));                                \
+        if (NULL == new_elements) {                                         \
+            (void)fputs(                                                    \
+                 "Error: Unable to resize dynamic array; buy more RAM lol", \
+                 stderr                                                     \
+            );                                                              \
+            exit(1);                                                        \
+        }                                                                   \
+                                                                            \
+        if ((size) >= (array)->count) {                                     \
+            (void)memcpy(                                                   \
+                 new_elements,                                              \
+                 (array)->elements,                                         \
+                 array_occupied_byte_size((array))                          \
+            );                                                              \
+        } else {                                                            \
+            (void)memcpy(                                                   \
+                 new_elements,                                              \
+                 (array)->elements,                                         \
+                 (size) * array_element_byte_size((array))                  \
+            );                                                              \
+            (array)->count = (size);                                        \
+        }                                                                   \
+        (array)->capacity = (size);                                         \
+                                                                            \
+        free((array)->elements);                                            \
+        (array)->elements = new_elements;                                   \
+                                                                            \
+     larray_resize_end:                                                     \
     }

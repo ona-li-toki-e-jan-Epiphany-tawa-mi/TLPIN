@@ -1,18 +1,36 @@
+#include <stdio.h>
+
 #include "array.h"
 
-typedef ARRAY_OF(int) int_array_t;
+
+
+typedef ARRAY_OF(char)  string_t;
+
+#define FREAD_CHUNK_SIZE 1024
+string_t read_entire_file(FILE* file) {
+    string_t contents = {0};
+
+    while (0 == feof(file) && 0 == ferror(file)) {
+        array_resize(&contents, FREAD_CHUNK_SIZE + contents.capacity);
+        char*  write_location = contents.elements + contents.count;
+        size_t bytes_read     = fread(write_location, sizeof(char), FREAD_CHUNK_SIZE, file);
+        contents.count += bytes_read;
+    }
+
+    return contents;
+}
 
 int main(void) {
-    int_array_t array = {0};
+    FILE* source = fopen("test.tlpin", "r");
+    if (NULL == source) {
+        perror("Error: Unable to open file 'test.tunpl'");
+        return 1;
+    };
 
-    for (size_t i = 0; i < 1000; ++i) {
-        array_append(&array, (int)i);
-    }
+    string_t contents = read_entire_file(source);
+    (void)fclose(source);
 
-    for (size_t i = 0; i < array.count; ++i) {
-        (void)printf("%d\n", array_at(&array, i));
-    }
+    printf("%.*s", contents.count, contents.elements);
 
-    array_free(&array);
     return 0;
 }
