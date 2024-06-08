@@ -32,5 +32,7 @@ int main(void) {
 
     printf("%.*s", contents.count, contents.elements);
 
+    array_free(&contents);
+
     return 0;
 }

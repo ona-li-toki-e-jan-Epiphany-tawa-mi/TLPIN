@@ -101,6 +101,7 @@
                 exit(1);                                                              \
             };                                                                        \
         }                                                                             \
+                                                                                      \
         (array)->elements[(array)->count++] = (element);                              \
     }
 
@@ -133,38 +134,23 @@
  * array - ARRAY_OF(type)*.
  * size - size_t.
  */
-#define array_resize(array, size)                                           \
-    {                                                                       \
-        if ((size) == (array)->capacity)                                    \
-            goto larray_resize_end;                                         \
-                                                                            \
-        void* new_elements = malloc((size));                                \
-        if (NULL == new_elements) {                                         \
-            (void)fputs(                                                    \
-                 "Error: Unable to resize dynamic array; buy more RAM lol", \
-                 stderr                                                     \
-            );                                                              \
-            exit(1);                                                        \
-        }                                                                   \
-                                                                            \
-        if ((size) >= (array)->count) {                                     \
-            (void)memcpy(                                                   \
-                 new_elements,                                              \
-                 (array)->elements,                                         \
-                 array_occupied_byte_size((array))                          \
-            );                                                              \
-        } else {                                                            \
-            (void)memcpy(                                                   \
-                 new_elements,                                              \
-                 (array)->elements,                                         \
-                 (size) * array_element_byte_size((array))                  \
-            );                                                              \
-            (array)->count = (size);                                        \
-        }                                                                   \
-        (array)->capacity = (size);                                         \
-                                                                            \
-        free((array)->elements);                                            \
-        (array)->elements = new_elements;                                   \
-                                                                            \
-     larray_resize_end:                                                     \
+#define array_resize(array, size)                                                 \
+    {                                                                             \
+        if ((size) == (array)->capacity)                                          \
+            goto larray_resize_end;                                               \
+                                                                                  \
+        if ((size) < (array)->count)                                              \
+            (array)->count = (size);                                              \
+        (array)->capacity = (size);                                               \
+                                                                                  \
+        (array)->elements = realloc((array)->elements, array_byte_size((array))); \
+        if (NULL == (array)->elements) {                                          \
+            (void)fputs(                                                          \
+                 "Error: Unable to reallocate dynamic array; buy more RAM lol",   \
+                 stderr                                                           \
+            );                                                                    \
+            exit(1);                                                              \
+        }                                                                         \
+                                                                                  \
+     larray_resize_end:                                                           \
     }
