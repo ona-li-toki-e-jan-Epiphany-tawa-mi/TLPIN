@@ -1,3 +1,5 @@
+#include "array.h"
+
 typedef ARRAY_OF(int) int_array_t;
 
 int main(void) {

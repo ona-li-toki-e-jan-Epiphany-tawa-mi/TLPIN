@@ -34,7 +34,6 @@
 
 #include <stdio.h>
 #include <stdlib.h>
-#include <assert.h>
 
 
 
@@ -62,19 +61,25 @@
 /*
  * Appends the element to the dynamic array pointed at by array.
  */
-#define array_append(array, element)                                           \
-    {                                                                          \
-        if ((array)->count >= (array)->capacity) {                             \
-            (array)->capacity = 0 == (array)->capacity                         \
-                              ? ARRAY_INITIAL_CAPACITY                         \
-                              : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity; \
-            (array)->elements = realloc(                                       \
-                 (array)->elements,                                            \
-                 (array)->capacity * sizeof(*(array)->elements)                \
-            );                                                                 \
-            assert(NULL != (array)->elements && "Buy more RAM lolxd");         \
-        }                                                                      \
-        (array)->elements[(array)->count++] = (element);                       \
+#define array_append(array, element)                                                \
+    {                                                                               \
+        if ((array)->count >= (array)->capacity) {                                  \
+            (array)->capacity = 0 == (array)->capacity                              \
+                              ? ARRAY_INITIAL_CAPACITY                              \
+                              : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity;      \
+            (array)->elements = realloc(                                            \
+                 (array)->elements,                                                 \
+                 (array)->capacity * sizeof(*(array)->elements)                     \
+            );                                                                      \
+            if (NULL == (array)->elements) {                                        \
+                (void)fputs(                                                        \
+                     "Error: unable to reallocate dynamic array; buy more RAM lol", \
+                     stderr                                                         \
+                );                                                                  \
+                exit(1);                                                            \
+            };                                                                      \
+        }                                                                           \
+        (array)->elements[(array)->count++] = (element);                            \
     }
 
 /*
