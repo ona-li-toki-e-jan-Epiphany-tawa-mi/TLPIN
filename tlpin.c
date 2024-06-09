@@ -42,7 +42,6 @@ char* cstring_from_buffer(const char* buffer, size_t buffer_size) {
 
 
 
-// TODO: Lex strings.
 typedef enum {
     TOKEN_STRING,
     TOKEN_INTEGER,
@@ -98,13 +97,16 @@ void lexeme_free(Lexeme* lexeme) {
 }
 
 typedef struct {
-    char*       token_buffer;
-    size_t      token_buffer_size;
-    LexemeArray lexemes;
-    size_t      line;
-    size_t      column;
-    size_t      multibyte_line;
-    size_t      multibyte_column;
+    const string_t* program;
+    size_t          program_index;
+    const char*     program_name;
+    char*           token_buffer;
+    size_t          token_buffer_size;
+    LexemeArray     lexemes;
+    size_t          line;
+    size_t          column;
+    size_t          multibyte_line;
+    size_t          multibyte_column;
 } LexerContext;
 
 void try_append_multibyte_lexeme(LexerContext* context) {
@@ -145,9 +147,102 @@ void try_append_multibyte_lexeme(LexerContext* context) {
     context->multibyte_column = SIZE_MAX;
 }
 
+void lex_string(LexerContext* context) {
+    context->multibyte_line   = context->line;
+    context->multibyte_column = context->column;
+
+    // Skips past first quote.
+    ++context->column;
+    ++context->program_index;
+
+    string_t string          = {0};
+    bool     found_end_quote = false;
+
+    for (; context->program_index < context->program->count; ++context->program_index) {
+        if (found_end_quote) break;
+
+        char character = array_at(context->program, context->program_index);
+
+        switch (character) {
+        case '"': {
+            found_end_quote = true;
+            ++context->column;
+        } break;
+
+        case '\n': {
+            ++context->line;
+            context->column = 0;
+        } break;
+
+        case '\\': {
+            ++context->program_index;
+            if (context->program_index >= context->program->count) {
+                goto lunterminated_string;
+            }
+            character = array_at(context->program, context->program_index);
+
+            switch (character) {
+            case '"':  array_append(&string, character); break;
+            case '\\': array_append(&string, character); break;
+            case 'n':  array_append(&string, '\n');      break;
+            case 't':  array_append(&string, '\t');      break;
+
+            default: {
+                (void)fprintf(
+                     stderr,
+                     "%s(%zu:%zu): Error: Unknown escape sequence '\\%c'",
+                     context->program_name,
+                     context->line, context->column,
+                     character
+                );
+                exit(1);
+            } break;
+            };
+
+            context->column += 2;
+        } break;
+
+        default: {
+            array_append(&string, character);
+            ++context->column;
+        } break;
+        };
+    }
+
+    if (!found_end_quote) goto lunterminated_string;
+
+    char* token = cstring_from_buffer(string.elements, string.count);
+    array_free(&string);
+
+    Lexeme lexeme = {
+        .type   = TOKEN_STRING,
+        .token  = { .as_string = token },
+        .line   = context->line,
+        .column = context->column
+    };
+    array_append(&context->lexemes, lexeme);
+
+    context->multibyte_line   = SIZE_MAX;
+    context->multibyte_column = SIZE_MAX;
+
+    return;
+
+ lunterminated_string:
+    (void)fprintf(
+         stderr,
+         "%s(%zu:%zu): Error: Unterminated string",
+         context->program_name,
+         context->multibyte_line, context->multibyte_column
+    );
+    exit(1);
+}
+
 LexemeArray lex_program(const string_t *restrict program, const char *restrict program_name) {
     char         token_buffer[MAX_TOKEN_SIZE];
     LexerContext context = {
+        .program           = program,
+        .program_index     = 0,
+        .program_name      = program_name,
         .token_buffer      = token_buffer,
         .token_buffer_size = 0,
         .lexemes           = {0},
@@ -157,8 +252,8 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
         .multibyte_column  = SIZE_MAX
     };
 
-    for (size_t i = 0; i < program->count; ++i) {
-        char character = array_at(program, i);
+    for (; context.program_index < context.program->count; ++context.program_index) {
+        char character = array_at(context.program, context.program_index);
 
         switch (character) {
         case '\n': {
@@ -191,6 +286,11 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
             ++context.column;
         } break;
 
+        case '"': {
+            try_append_multibyte_lexeme(&context);
+            lex_string(&context);
+        } break;
+
         case ' ':
         case '\t': {
             try_append_multibyte_lexeme(&context);
@@ -202,7 +302,7 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
                 (void)fprintf(
                      stderr,
                      "%s(%zu:%zu): Error: Encountered token larger than the maximum allowed size %zu: %.*s",
-                     program_name,
+                     context.program_name,
                      context.line, context.column,
                      (size_t)MAX_TOKEN_SIZE,
                      (int)context.token_buffer_size, context.token_buffer
@@ -236,17 +336,42 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_STRING: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: \"%s\"\n",
+                 "%s(%zu:%zu): %s: \"",
                  program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type),
-                 lexeme.token.as_string
+                 token_type_name(lexeme.type)
             );
+
+            for ( const char* character = lexeme.token.as_string
+                ; '\0' != *character
+                ; ++character) {
+                switch (*character) {
+                case '"':
+                case '\\': {
+                    (void)fputc('\\', stream);
+                    (void)fputc(*character, stream);
+                } break;
+
+                case '\n': {
+                    (void)fputs("\\n", stream);
+                } break;
+
+                case '\t': {
+                    (void)fputs("\\t", stream);
+                } break;
+
+                default: {
+                    (void)fputc(*character, stream);
+                } break;
+                }
+            }
+
+            (void)fputs("\"\n", stream);
         } break;
 
         case TOKEN_INTEGER: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: %ld\n",
+                 "%s(%zu:%zu): %s: %ld\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
                  lexeme.token.as_integer
@@ -256,7 +381,7 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_FLOAT: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: %f\n",
+                 "%s(%zu:%zu): %s: %f\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
                  lexeme.token.as_float
@@ -266,7 +391,7 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_ATOM: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: %s\n",
+                 "%s(%zu:%zu): %s: %s\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
                  lexeme.token.as_atom
@@ -276,7 +401,7 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_NEWLINE: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s\n",
+                 "%s(%zu:%zu): %s\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type)
             );
@@ -285,7 +410,7 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_PARENTHESIS: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: %c\n",
+                 "%s(%zu:%zu): %s: %c\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
                  lexeme.token.as_parenthesis
