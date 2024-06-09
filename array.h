@@ -81,6 +81,23 @@
 #define array_byte_size(array) ((array)->capacity * array_element_byte_size((array)))
 
 /*
+ * Fetches the element at the given index in the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ * index - size_t.
+ */
+#define array_at(array, index) (array)->elements[(index)]
+
+/*
+ * Sets the value of the element at the given index in the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ * index - size_t.
+ * value - type.
+ */
+#define array_set(array, index, value) ((array)->elements[(index)] = (value))
+
+/*
  * Appends an element to the dynamic array.
  *
  * array - ARRAY_OF(type)*.
@@ -103,27 +120,6 @@
         }                                                                             \
                                                                                       \
         (array)->elements[(array)->count++] = (element);                              \
-    }
-
-/*
- * Fetches the element at the given index in the dynamic array.
- *
- * array - ARRAY_OF(type)*.
- * index - size_t.
- */
-#define array_at(array, index) (array)->elements[(index)]
-
-/*
- * Frees the memory allocated by the dynamic array.
- *
- * array - ARRAY_OF(type)*.
- */
-#define array_free(array)                       \
-    {                                           \
-        free((array)->elements);                \
-        (array)->elements = NULL;               \
-        (array)->count    = 0;                  \
-        (array)->capacity = 0;                  \
     }
 
 /*
@@ -153,4 +149,34 @@
         }                                                                         \
                                                                                   \
      larray_resize_end:                                                           \
+    }
+
+/*
+ * Applies a function to each of the elements of the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ * function - type(*)(type).
+ */
+#define array_map(array, function)                    \
+    {                                                 \
+        for (size_t i = 0; i < (array)->count; ++i) { \
+            array_set(                                \
+                (array),                              \
+                i,                                    \
+                (function)(array_at((array), i))      \
+            );                                        \
+        }                                             \
+    }
+
+/*
+ * Frees the memory allocated by the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ */
+#define array_free(array)                       \
+    {                                           \
+        free((array)->elements);                \
+        (array)->elements = NULL;               \
+        (array)->count    = 0;                  \
+        (array)->capacity = 0;                  \
     }
