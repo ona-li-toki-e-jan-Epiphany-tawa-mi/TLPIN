@@ -1,17 +1,21 @@
 #include <stdio.h>
+#include <stdbool.h>
+#include <assert.h>
+#include <stdint.h>
 
 #include "array.h"
 
 
 
-typedef ARRAY_OF(char)  string_t;
+typedef ARRAY_OF(char) string_t;
 
 #define FREAD_CHUNK_SIZE 1024
+
 string_t read_entire_file(FILE* file) {
     string_t contents = {0};
 
     while (0 == feof(file) && 0 == ferror(file)) {
-        array_resize(&contents, FREAD_CHUNK_SIZE + contents.capacity);
+        array_expand(&contents, FREAD_CHUNK_SIZE);
         char*  write_location = contents.elements + contents.count;
         size_t bytes_read     = fread(write_location, sizeof(char), FREAD_CHUNK_SIZE, file);
         contents.count += bytes_read;
@@ -20,19 +24,264 @@ string_t read_entire_file(FILE* file) {
     return contents;
 }
 
+
+
+// TODO: Lex strings, integers, and floats.
+typedef enum {
+    TOKEN_STRING,
+    TOKEN_INTEGER,
+    TOKEN_FLOAT,
+    TOKEN_ATOM,
+    TOKEN_NEWLINE,
+    TOKEN_PARENTHESIS
+} TokenType;
+
+const char* token_type_name(TokenType type) {
+    switch (type) {
+    case TOKEN_STRING:      return "TOKEN_STRING";
+    case TOKEN_INTEGER:     return "TOKEN_INTEGER";
+    case TOKEN_FLOAT:       return "TOKEN_FLOAT";
+    case TOKEN_ATOM:        return "TOKEN_ATOM";
+    case TOKEN_NEWLINE:     return "TOKEN_NEWLINE";
+    case TOKEN_PARENTHESIS: return "TOKEN_PARENTHESIS";
+    default:                assert(false && "Unhandled token type");
+    }
+}
+
+#define MAX_TOKEN_SIZE 256
+
+typedef union {
+    string_t as_string;
+    int64_t  as_integer;
+    double   as_float;
+    string_t as_atom;
+    char     as_newline;
+    char     as_parenthesis;
+} Token;
+
+typedef struct {
+    TokenType type;
+    Token     token;
+    size_t    line;
+    size_t    column;
+} Lexeme;
+
+typedef ARRAY_OF(Lexeme) LexemeArray;
+
+void lexeme_free(Lexeme* lexeme) {
+    switch (lexeme->type) {
+
+    case TOKEN_STRING:      array_free(&lexeme->token.as_string); break;
+    case TOKEN_INTEGER:     break;
+    case TOKEN_FLOAT:       break;
+    case TOKEN_ATOM:        array_free(&lexeme->token.as_atom); break;
+    case TOKEN_NEWLINE:     break;
+    case TOKEN_PARENTHESIS: break;
+    default:                break;
+    }
+}
+
+typedef struct {
+    char*       token_buffer;
+    size_t      token_buffer_size;
+    LexemeArray lexemes;
+    size_t      line;
+    size_t      column;
+    size_t      atom_line;
+    size_t      atom_column;
+} LexerContext;
+
+void try_append_multibyte_lexeme(LexerContext* context) {
+    if (0 == context->token_buffer_size) return;
+
+    string_t token = {0};
+    array_append_many(&token, context->token_buffer, context->token_buffer_size);
+    context->token_buffer_size = 0;
+
+    Lexeme lexeme = {
+        .type   = TOKEN_ATOM,
+        .token  = { .as_atom = token },
+        .line   = context->atom_line,
+        .column = context->atom_column
+    };
+    array_append(&context->lexemes, lexeme);
+
+    context->atom_line   = SIZE_MAX;
+    context->atom_column = SIZE_MAX;
+}
+
+LexemeArray lex_program(const string_t *restrict program, const char *restrict program_name) {
+    char         token_buffer[MAX_TOKEN_SIZE];
+    LexerContext context = {
+        .token_buffer      = token_buffer,
+        .token_buffer_size = 0,
+        .lexemes           = {0},
+        .line              = 1,
+        .column            = 0,
+        .atom_line         = SIZE_MAX,
+        .atom_column       = SIZE_MAX
+    };
+
+    for (size_t i = 0; i < program->count; ++i) {
+        char character = array_at(program, i);
+
+        switch (character) {
+        case '\n': {
+            try_append_multibyte_lexeme(&context);
+
+            Lexeme lexeme = {
+                .type   = TOKEN_NEWLINE,
+                .token  = { .as_newline = character },
+                .line   = context.line,
+                .column = context.column
+            };
+            array_append(&context.lexemes, lexeme);
+
+            ++context.line;
+            context.column = 0;
+        } break;
+
+        case '(':
+        case ')': {
+            try_append_multibyte_lexeme(&context);
+
+            Lexeme lexeme = {
+                .type   = TOKEN_PARENTHESIS,
+                .token  = { .as_parenthesis = character },
+                .line   = context.line,
+                .column = context.column
+            };
+            array_append(&context.lexemes, lexeme);
+
+            ++context.column;
+        } break;
+
+        case ' ':
+        case '\t': {
+            try_append_multibyte_lexeme(&context);
+            ++context.column;
+        } break;
+
+        default: {
+            if (MAX_TOKEN_SIZE <= context.token_buffer_size) {
+                (void)fprintf(
+                     stderr,
+                     "%s(%zu:%zu): Error: Encountered token larger than the maximum allowed size %zu: %.*s",
+                     program_name,
+                     context.line, context.column,
+                     (size_t)MAX_TOKEN_SIZE,
+                     (int)context.token_buffer_size, context.token_buffer
+                );
+                exit(1);
+            }
+
+            if (SIZE_MAX == context.atom_line)   context.atom_line   = context.line;
+            if (SIZE_MAX == context.atom_column) context.atom_column = context.column;
+            context.token_buffer[context.token_buffer_size++] = character;
+
+            ++context.column;
+        } break;
+        }
+    }
+
+    try_append_multibyte_lexeme(&context);
+
+    return context.lexemes;
+}
+
+void dump_lexemes( FILE *restrict stream
+                 , const LexemeArray *restrict lexemes
+                 , const char *restrict program_name) {
+    for (size_t i = 0; i < lexemes->count; ++i) {
+        Lexeme lexeme = array_at(lexemes, i);
+
+        switch (lexeme.type) {
+        case TOKEN_STRING: {
+            fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s: \"%.*s\"\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type),
+                 (int)lexeme.token.as_string.count, lexeme.token.as_string.elements
+            );
+        } break;
+
+        case TOKEN_INTEGER: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s: %ld\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type),
+                 lexeme.token.as_integer
+            );
+        } break;
+
+        case TOKEN_FLOAT: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s: %f\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type),
+                 lexeme.token.as_float
+            );
+        } break;
+
+        case TOKEN_ATOM: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s: %.*s\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type),
+                 (int)lexeme.token.as_atom.count, lexeme.token.as_atom.elements
+            );
+        } break;
+
+        case TOKEN_NEWLINE: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type)
+            );
+        } break;
+
+        case TOKEN_PARENTHESIS: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu,%zu): %s: %c\n",
+                 program_name, lexeme.line, lexeme.column,
+                 token_type_name(lexeme.type),
+                 lexeme.token.as_parenthesis
+            );
+        } break;
+
+        default: assert(false && "Unhandled token type");
+        };
+    }
+}
+
+
+
+#define SOURCE_FILE "test.tlpin"
+
 int main(void) {
-    FILE* source = fopen("test.tlpin", "r");
+    FILE* source = fopen(SOURCE_FILE, "r");
     if (NULL == source) {
-        perror("Error: Unable to open file 'test.tunpl'");
+        perror("Error: Unable to open file '" SOURCE_FILE "'");
         return 1;
     };
 
     string_t contents = read_entire_file(source);
     (void)fclose(source);
 
-    printf("%.*s", contents.count, contents.elements);
-
+    LexemeArray lexemes = lex_program(&contents, SOURCE_FILE);
     array_free(&contents);
+
+    dump_lexemes(stdout, &lexemes, SOURCE_FILE);
+
+    for (size_t i = 0; i < lexemes.count; ++i)
+        lexeme_free(&array_at(&lexemes, i));
+    array_free(&lexemes);
 
     return 0;
 }
