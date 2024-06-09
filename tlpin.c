@@ -24,9 +24,25 @@ string_t read_entire_file(FILE* file) {
     return contents;
 }
 
+char* cstring_from_buffer(const char* buffer, size_t buffer_size) {
+    char* cstring = malloc(buffer_size + 1);
+    if (NULL == cstring) {
+            (void)fputs(
+                 "Error: Unable to allocate memory for C-string conversion; buy more RAM lol",
+                 stderr
+            );
+            exit(1);
+    }
+
+    (void)memcpy(cstring, buffer, buffer_size);
+    cstring[buffer_size + 1] = '\0';
+
+    return cstring;
+}
 
 
-// TODO: Lex strings, integers, and floats.
+
+// TODO: Lex strings.
 typedef enum {
     TOKEN_STRING,
     TOKEN_INTEGER,
@@ -51,12 +67,12 @@ const char* token_type_name(TokenType type) {
 #define MAX_TOKEN_SIZE 256
 
 typedef union {
-    string_t as_string;
-    int64_t  as_integer;
-    double   as_float;
-    string_t as_atom;
-    char     as_newline;
-    char     as_parenthesis;
+    char*   as_string;
+    int64_t as_integer;
+    double  as_float;
+    char*   as_atom;
+    char    as_newline;
+    char    as_parenthesis;
 } Token;
 
 typedef struct {
@@ -71,10 +87,10 @@ typedef ARRAY_OF(Lexeme) LexemeArray;
 void lexeme_free(Lexeme* lexeme) {
     switch (lexeme->type) {
 
-    case TOKEN_STRING:      array_free(&lexeme->token.as_string); break;
+    case TOKEN_STRING:      free(lexeme->token.as_string); break;
     case TOKEN_INTEGER:     break;
     case TOKEN_FLOAT:       break;
-    case TOKEN_ATOM:        array_free(&lexeme->token.as_atom); break;
+    case TOKEN_ATOM:        free(lexeme->token.as_atom); break;
     case TOKEN_NEWLINE:     break;
     case TOKEN_PARENTHESIS: break;
     default:                break;
@@ -87,27 +103,46 @@ typedef struct {
     LexemeArray lexemes;
     size_t      line;
     size_t      column;
-    size_t      atom_line;
-    size_t      atom_column;
+    size_t      multibyte_line;
+    size_t      multibyte_column;
 } LexerContext;
 
 void try_append_multibyte_lexeme(LexerContext* context) {
     if (0 == context->token_buffer_size) return;
 
-    string_t token = {0};
-    array_append_many(&token, context->token_buffer, context->token_buffer_size);
+    char* token = cstring_from_buffer(context->token_buffer, context->token_buffer_size);
+
+    size_t token_size          = context->token_buffer_size;
     context->token_buffer_size = 0;
 
-    Lexeme lexeme = {
-        .type   = TOKEN_ATOM,
-        .token  = { .as_atom = token },
-        .line   = context->atom_line,
-        .column = context->atom_column
-    };
-    array_append(&context->lexemes, lexeme);
+    Lexeme lexeme;
+    lexeme.line   = context->multibyte_line;
+    lexeme.column = context->multibyte_column;
 
-    context->atom_line   = SIZE_MAX;
-    context->atom_column = SIZE_MAX;
+    char*   end_pointer = token;
+    int64_t as_integer  = strtol(token, &end_pointer, 10);
+    if (token_size == (size_t)(end_pointer - token)) {
+        lexeme.type             = TOKEN_INTEGER;
+        lexeme.token.as_integer = as_integer;
+        goto lend;
+    }
+
+    end_pointer     = token;
+    double as_float = strtod(token, &end_pointer);
+    if (token_size == (size_t)(end_pointer - token)) {
+        lexeme.type           = TOKEN_FLOAT;
+        lexeme.token.as_float = as_float;
+        goto lend;
+    }
+
+    lexeme.type          = TOKEN_ATOM;
+    lexeme.token.as_atom = token;
+    goto lend;
+
+ lend:
+    array_append(&context->lexemes, lexeme);
+    context->multibyte_line   = SIZE_MAX;
+    context->multibyte_column = SIZE_MAX;
 }
 
 LexemeArray lex_program(const string_t *restrict program, const char *restrict program_name) {
@@ -118,8 +153,8 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
         .lexemes           = {0},
         .line              = 1,
         .column            = 0,
-        .atom_line         = SIZE_MAX,
-        .atom_column       = SIZE_MAX
+        .multibyte_line    = SIZE_MAX,
+        .multibyte_column  = SIZE_MAX
     };
 
     for (size_t i = 0; i < program->count; ++i) {
@@ -175,8 +210,10 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
                 exit(1);
             }
 
-            if (SIZE_MAX == context.atom_line)   context.atom_line   = context.line;
-            if (SIZE_MAX == context.atom_column) context.atom_column = context.column;
+            if (SIZE_MAX == context.multibyte_line)
+                context.multibyte_line = context.line;
+            if (SIZE_MAX == context.multibyte_column)
+                context.multibyte_column = context.column;
             context.token_buffer[context.token_buffer_size++] = character;
 
             ++context.column;
@@ -197,12 +234,12 @@ void dump_lexemes( FILE *restrict stream
 
         switch (lexeme.type) {
         case TOKEN_STRING: {
-            fprintf(
+            (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: \"%.*s\"\n",
+                 "%s(%zu,%zu): %s: \"%s\"\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
-                 (int)lexeme.token.as_string.count, lexeme.token.as_string.elements
+                 lexeme.token.as_string
             );
         } break;
 
@@ -229,10 +266,10 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_ATOM: {
             (void)fprintf(
                  stream,
-                 "%s(%zu,%zu): %s: %.*s\n",
+                 "%s(%zu,%zu): %s: %s\n",
                  program_name, lexeme.line, lexeme.column,
                  token_type_name(lexeme.type),
-                 (int)lexeme.token.as_atom.count, lexeme.token.as_atom.elements
+                 lexeme.token.as_atom
             );
         } break;
 
