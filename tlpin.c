@@ -32,12 +32,12 @@ const char* token_type_name(TokenType type) {
 #define MAX_TOKEN_SIZE 256
 
 typedef union {
-    char*   as_string;
-    int64_t as_integer;
-    double  as_float;
-    char*   as_atom;
-    char    as_newline;
-    char    as_parenthesis;
+    sstring_t as_string;
+    int64_t   as_integer;
+    double    as_float;
+    sstring_t as_atom;
+    char      as_newline;
+    char      as_parenthesis;
 } Token;
 
 typedef struct {
@@ -52,10 +52,10 @@ typedef ARRAY_OF(Lexeme) LexemeArray;
 void lexeme_free(Lexeme* lexeme) {
     switch (lexeme->type) {
 
-    case TOKEN_STRING:      free(lexeme->token.as_string); break;
+    case TOKEN_STRING:      sstring_free(&lexeme->token.as_string); break;
     case TOKEN_INTEGER:     break;
     case TOKEN_FLOAT:       break;
-    case TOKEN_ATOM:        free(lexeme->token.as_atom); break;
+    case TOKEN_ATOM:        sstring_free(&lexeme->token.as_atom); break;
     case TOKEN_NEWLINE:     break;
     case TOKEN_PARENTHESIS: break;
     default:                break;
@@ -77,39 +77,92 @@ typedef struct {
 void try_append_multibyte_lexeme(LexerContext* context) {
     if (0 == context->token_buffer.count) return;
 
-    char* token = sstring_to_cstring(&context->token_buffer);
-
-    size_t token_size = context->token_buffer.count;
-    context->token_buffer.count = 0;
-
-    Lexeme lexeme;
+    Lexeme lexeme = {0};
     lexeme.line   = context->multibyte_line;
     lexeme.column = context->multibyte_column;
 
-    char*   end_pointer = token;
-    int64_t as_integer  = strtol(token, &end_pointer, 10);
-    if (token_size == (size_t)(end_pointer - token)) {
+    SstringConvertResult result;
+
+    // First, we try to parse the lexeme as an integer.
+    int64_t as_integer  = sstring_to_long(&context->token_buffer, 10, &result);
+    switch (result) {
+    case SSTRING_CONVERT_SUCCESS: {
         lexeme.type             = TOKEN_INTEGER;
         lexeme.token.as_integer = as_integer;
         goto lend;
+    } break;
+    case SSTRING_CONVERT_UNDERFLOW: {
+        (void)fprintf(
+             stderr,
+             "%s(%zu:%zu): Error: Integer conversion of '%.*s' results in underflow",
+             context->program_name,
+             lexeme.line, lexeme.column,
+             (int)context->token_buffer.count, context->token_buffer.elements
+        );
+        exit(1);
+    } break;
+    case SSTRING_CONVERT_OVERFLOW: {
+        (void)fprintf(
+             stderr,
+             "%s(%zu:%zu): Error: Integer conversion of '%.*s' results in overflow",
+             context->program_name,
+             lexeme.line,                 lexeme.column,
+             (int)context->token_buffer.count, context->token_buffer.elements
+        );
+        exit(1);
+    } break;
+    case SSTRING_CONVERT_PARSE_FAIL: break;
+    default: assert(false && "Unhandled sstring conversion result");
     }
 
-    end_pointer     = token;
-    double as_float = strtod(token, &end_pointer);
-    if (token_size == (size_t)(end_pointer - token)) {
+    // If that fails, we then try to parse the lexeme as a float.
+    double as_float = sstring_to_double(&context->token_buffer, &result);
+    switch (result) {
+    case SSTRING_CONVERT_SUCCESS: {
         lexeme.type           = TOKEN_FLOAT;
         lexeme.token.as_float = as_float;
         goto lend;
+    } break;
+    case SSTRING_CONVERT_UNDERFLOW: {
+        (void)fprintf(
+             stderr,
+             "%s(%zu:%zu): Error: Float conversion of '%.*s' results in underflow",
+             context->program_name,
+             lexeme.line, lexeme.column,
+             (int)context->token_buffer.count, context->token_buffer.elements
+        );
+        exit(1);
+    } break;
+    case SSTRING_CONVERT_OVERFLOW: {
+        (void)fprintf(
+             stderr,
+             "%s(%zu:%zu): Error: Float conversion of '%.*s' results in overflow",
+             context->program_name,
+             lexeme.line,                 lexeme.column,
+             (int)context->token_buffer.count, context->token_buffer.elements
+        );
+        exit(1);
+    } break;
+    case SSTRING_CONVERT_PARSE_FAIL: break;
+    default: assert(false && "Unhandled sstring conversion result");
     }
 
-    lexeme.type          = TOKEN_ATOM;
-    lexeme.token.as_atom = token;
+    // Else, we assume it is an atom.
+    lexeme.type = TOKEN_ATOM;
+    sstring_resize(&lexeme.token.as_atom, context->token_buffer.count);
+    (void)memcpy(
+         lexeme.token.as_atom.elements,
+         context->token_buffer.elements,
+         context->token_buffer.count
+    );
+    context->token_buffer.count = 0;
     goto lend;
 
  lend:
     array_append(&context->lexemes, lexeme);
-    context->multibyte_line   = SIZE_MAX;
-    context->multibyte_column = SIZE_MAX;
+    context->token_buffer.count = 0;
+    context->multibyte_line     = SIZE_MAX;
+    context->multibyte_column   = SIZE_MAX;
 }
 
 void lex_string(LexerContext* context) {
@@ -176,12 +229,9 @@ void lex_string(LexerContext* context) {
 
     if (!found_end_quote) goto lunterminated_string;
 
-    char* token = sstring_to_cstring(&string);
-    sstring_free(&string);
-
     Lexeme lexeme = {
         .type   = TOKEN_STRING,
-        .token  = { .as_string = token },
+        .token  = { .as_string = string },
         .line   = context->line,
         .column = context->column
     };
@@ -307,14 +357,13 @@ void dump_lexemes( FILE *restrict stream
                  token_type_name(lexeme->type)
             );
 
-            for ( const char* character = lexeme->token.as_string
-                ; '\0' != *character
-                ; ++character) {
-                switch (*character) {
+            for (size_t k = 0; k < lexeme->token.as_string.count; ++k) {
+                char character = sstring_at(&lexeme->token.as_string, k);
+                switch (character) {
                 case '"':
                 case '\\': {
                     (void)fputc('\\', stream);
-                    (void)fputc(*character, stream);
+                    (void)fputc(character, stream);
                 } break;
 
                 case '\n': {
@@ -326,7 +375,7 @@ void dump_lexemes( FILE *restrict stream
                 } break;
 
                 default: {
-                    (void)fputc(*character, stream);
+                    (void)fputc(character, stream);
                 } break;
                 }
             }
@@ -357,10 +406,10 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_ATOM: {
             (void)fprintf(
                  stream,
-                 "%s(%zu:%zu): %s: %s\n",
+                 "%s(%zu:%zu): %s: %.*s\n",
                  program_name, lexeme->line, lexeme->column,
                  token_type_name(lexeme->type),
-                 lexeme->token.as_atom
+                 (int)lexeme->token.as_atom.count, lexeme->token.as_atom.elements
             );
         } break;
 
