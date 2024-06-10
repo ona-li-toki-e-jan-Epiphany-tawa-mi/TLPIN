@@ -111,6 +111,27 @@
 #define array_set(array, index, value) ((array)->elements[(index)] = (value))
 
 /*
+ * Swaps the contents of the dynamic arrays.
+ *
+ * array1 - ARRAY_OF(type)*.
+ * array2 - ARRAY_OF(type)*.
+ */
+#define array_swap(array1, array2)                      \
+    {                                                   \
+        void* array1_elements = (array1)->elements;     \
+        (array1)->elements    = (array2)->elements;     \
+        (array2)->elements    = array1_elements;        \
+                                                        \
+        size_t array1_count = (array1)->count;          \
+        (array1)->count     = (array2)->count;          \
+        (array2)->count     = array1_count;             \
+                                                        \
+        size_t array1_capacity = (array1)->capacity;    \
+        (array1)->capacity     = (array2)->capacity;    \
+        (array2)->capacity     = array1_capacity;       \
+    }
+
+/*
  * Reallocates the memory of the dynamic array if it's capacity has changed.
  *
  * array - ARRAY_OF(type)*.
