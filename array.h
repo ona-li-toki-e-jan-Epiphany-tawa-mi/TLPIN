@@ -50,13 +50,26 @@
 
 /*
  * Creates an array type that stores the given type. Intantiations of this type
- * should be zero-initialized.
+ * should be zero-initialized to start.
  */
 #define ARRAY_OF(type)                          \
     struct {                                    \
         type*  elements;                        \
         size_t count;                           \
         size_t capacity;                        \
+    }
+
+/*
+ * Frees the memory allocated by the dynamic array.
+ *
+ * array - ARRAY_OF(type)*.
+ */
+#define array_free(array)                       \
+    {                                           \
+        free((array)->elements);                \
+        (array)->elements = NULL;               \
+        (array)->count    = 0;                  \
+        (array)->capacity = 0;                  \
     }
 
 /*
@@ -115,6 +128,37 @@
     }
 
 /*
+ * Resizes the dynamic array to the given size. If the size specified is smaller
+ * than the array's current size, the array will be truncated.
+ * Has no effect if the current and specified size are the same.
+ *
+ * array - ARRAY_OF(type)*.
+ * size  - size_t.
+ */
+#define array_resize(array, size)               \
+    {                                           \
+        if ((size) != (array)->capacity) {      \
+            if ((size) < (array)->count)        \
+                (array)->count = (size);        \
+            (array)->capacity = (size);         \
+            array_reallocate((array));          \
+        }                                       \
+    }
+
+/*
+ * Increases the size of the dynamic array by the given amount.
+ *
+ * array - ARRAY_OF(type)*.
+ * size  - size_t.
+ */
+#define array_expand(array, size)                                                 \
+    {                                                                             \
+        (array)->capacity += (size);                                              \
+        (array)->elements = realloc((array)->elements, array_byte_size((array))); \
+        array_reallocate((array));                                                \
+    }
+
+/*
  * Appends an element to the dynamic array.
  *
  * array   - ARRAY_OF(type)*.
@@ -160,40 +204,6 @@
     }
 
 /*
- * Resizes the dynamic array to the given size. If the size specified is smaller
- * than the array's current size, the array will be truncated.
- * Has no effect if the current and specified size are the same.
- *
- * array - ARRAY_OF(type)*.
- * size  - size_t.
- */
-#define array_resize(array, size)               \
-    {                                           \
-        if ((size) == (array)->capacity)        \
-            goto larray_resize_end;             \
-                                                \
-        if ((size) < (array)->count)            \
-            (array)->count = (size);            \
-        (array)->capacity = (size);             \
-        array_reallocate((array));              \
-                                                \
-    larray_resize_end:                          \
-    }
-
-/*
- * Increases the size of the dynamic array by the given amount.
- *
- * array - ARRAY_OF(type)*.
- * size  - size_t.
- */
-#define array_expand(array, size)                                                 \
-    {                                                                             \
-        (array)->capacity += (size);                                              \
-        (array)->elements = realloc((array)->elements, array_byte_size((array))); \
-        array_reallocate((array));                                                \
-    }
-
-/*
  * Applies a function to each of the elements of the dynamic array.
  *
  * array    - ARRAY_OF(type)*.
@@ -208,17 +218,4 @@
                 (function)(array_at((array), i))      \
             );                                        \
         }                                             \
-    }
-
-/*
- * Frees the memory allocated by the dynamic array.
- *
- * array - ARRAY_OF(type)*.
- */
-#define array_free(array)                       \
-    {                                           \
-        free((array)->elements);                \
-        (array)->elements = NULL;               \
-        (array)->count    = 0;                  \
-        (array)->capacity = 0;                  \
     }
