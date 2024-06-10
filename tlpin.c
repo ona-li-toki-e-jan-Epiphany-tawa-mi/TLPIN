@@ -3,42 +3,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "array.h"
-
-
-
-typedef ARRAY_OF(char) string_t;
-
-#define FREAD_CHUNK_SIZE 1024
-
-string_t read_entire_file(FILE* file) {
-    string_t contents = {0};
-
-    while (0 == feof(file) && 0 == ferror(file)) {
-        array_expand(&contents, FREAD_CHUNK_SIZE);
-        char*  write_location = contents.elements + contents.count;
-        size_t bytes_read     = fread(write_location, sizeof(char), FREAD_CHUNK_SIZE, file);
-        contents.count += bytes_read;
-    }
-
-    return contents;
-}
-
-char* cstring_from_buffer(const char* buffer, size_t buffer_size) {
-    char* cstring = malloc(buffer_size + 1);
-    if (NULL == cstring) {
-            (void)fputs(
-                 "Error: Unable to allocate memory for C-string conversion; buy more RAM lol",
-                 stderr
-            );
-            exit(1);
-    }
-
-    (void)memcpy(cstring, buffer, buffer_size);
-    cstring[buffer_size + 1] = '\0';
-
-    return cstring;
-}
+#define SIZED_STRING_IMPLEMENTATION
+#include "sized-string.h"
 
 
 
@@ -97,25 +63,24 @@ void lexeme_free(Lexeme* lexeme) {
 }
 
 typedef struct {
-    const string_t* program;
-    size_t          program_index;
-    const char*     program_name;
-    char*           token_buffer;
-    size_t          token_buffer_size;
-    LexemeArray     lexemes;
-    size_t          line;
-    size_t          column;
-    size_t          multibyte_line;
-    size_t          multibyte_column;
+    const sstring_t* program;
+    size_t           program_index;
+    const char*      program_name;
+    sstring_t        token_buffer;
+    LexemeArray      lexemes;
+    size_t           line;
+    size_t           column;
+    size_t           multibyte_line;
+    size_t           multibyte_column;
 } LexerContext;
 
 void try_append_multibyte_lexeme(LexerContext* context) {
-    if (0 == context->token_buffer_size) return;
+    if (0 == context->token_buffer.count) return;
 
-    char* token = cstring_from_buffer(context->token_buffer, context->token_buffer_size);
+    char* token = sstring_to_cstring(&context->token_buffer);
 
-    size_t token_size          = context->token_buffer_size;
-    context->token_buffer_size = 0;
+    size_t token_size = context->token_buffer.count;
+    context->token_buffer.count = 0;
 
     Lexeme lexeme;
     lexeme.line   = context->multibyte_line;
@@ -155,13 +120,13 @@ void lex_string(LexerContext* context) {
     ++context->column;
     ++context->program_index;
 
-    string_t string          = {0};
-    bool     found_end_quote = false;
+    sstring_t string          = {0};
+    bool      found_end_quote = false;
 
     for (; context->program_index < context->program->count; ++context->program_index) {
         if (found_end_quote) break;
 
-        char character = array_at(context->program, context->program_index);
+        char character = sstring_at(context->program, context->program_index);
 
         switch (character) {
         case '"': {
@@ -179,13 +144,13 @@ void lex_string(LexerContext* context) {
             if (context->program_index >= context->program->count) {
                 goto lunterminated_string;
             }
-            character = array_at(context->program, context->program_index);
+            character = sstring_at(context->program, context->program_index);
 
             switch (character) {
-            case '"':  array_append(&string, character); break;
-            case '\\': array_append(&string, character); break;
-            case 'n':  array_append(&string, '\n');      break;
-            case 't':  array_append(&string, '\t');      break;
+            case '"':  sstring_append(&string, character); break;
+            case '\\': sstring_append(&string, character); break;
+            case 'n':  sstring_append(&string, '\n');      break;
+            case 't':  sstring_append(&string, '\t');      break;
 
             default: {
                 (void)fprintf(
@@ -203,7 +168,7 @@ void lex_string(LexerContext* context) {
         } break;
 
         default: {
-            array_append(&string, character);
+            sstring_append(&string, character);
             ++context->column;
         } break;
         };
@@ -211,8 +176,8 @@ void lex_string(LexerContext* context) {
 
     if (!found_end_quote) goto lunterminated_string;
 
-    char* token = cstring_from_buffer(string.elements, string.count);
-    array_free(&string);
+    char* token = sstring_to_cstring(&string);
+    sstring_free(&string);
 
     Lexeme lexeme = {
         .type   = TOKEN_STRING,
@@ -237,23 +202,24 @@ void lex_string(LexerContext* context) {
     exit(1);
 }
 
-LexemeArray lex_program(const string_t *restrict program, const char *restrict program_name) {
-    char         token_buffer[MAX_TOKEN_SIZE];
+LexemeArray lex_program(const sstring_t *restrict program, const char *restrict program_name) {
     LexerContext context = {
         .program           = program,
         .program_index     = 0,
         .program_name      = program_name,
-        .token_buffer      = token_buffer,
-        .token_buffer_size = 0,
+        .token_buffer      = {0},
         .lexemes           = {0},
         .line              = 1,
         .column            = 0,
         .multibyte_line    = SIZE_MAX,
         .multibyte_column  = SIZE_MAX
     };
+    // Since we have a limit on how large tokens can be we can preallocate the
+    // buffer used to construct them.
+    sstring_resize(&context.token_buffer, MAX_TOKEN_SIZE);
 
     for (; context.program_index < context.program->count; ++context.program_index) {
-        char character = array_at(context.program, context.program_index);
+        char character = sstring_at(context.program, context.program_index);
 
         switch (character) {
         case '\n': {
@@ -298,14 +264,14 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
         } break;
 
         default: {
-            if (MAX_TOKEN_SIZE <= context.token_buffer_size) {
+            if (MAX_TOKEN_SIZE <= context.token_buffer.count) {
                 (void)fprintf(
                      stderr,
                      "%s(%zu:%zu): Error: Encountered token larger than the maximum allowed size %zu: %.*s",
                      context.program_name,
                      context.line, context.column,
                      (size_t)MAX_TOKEN_SIZE,
-                     (int)context.token_buffer_size, context.token_buffer
+                     (int)context.token_buffer.count, context.token_buffer.elements
                 );
                 exit(1);
             }
@@ -314,7 +280,7 @@ LexemeArray lex_program(const string_t *restrict program, const char *restrict p
                 context.multibyte_line = context.line;
             if (SIZE_MAX == context.multibyte_column)
                 context.multibyte_column = context.column;
-            context.token_buffer[context.token_buffer_size++] = character;
+            sstring_append(&context.token_buffer, character);
 
             ++context.column;
         } break;
@@ -330,18 +296,18 @@ void dump_lexemes( FILE *restrict stream
                  , const LexemeArray *restrict lexemes
                  , const char *restrict program_name) {
     for (size_t i = 0; i < lexemes->count; ++i) {
-        Lexeme lexeme = array_at(lexemes, i);
+        const Lexeme* lexeme = &array_at(lexemes, i);
 
-        switch (lexeme.type) {
+        switch (lexeme->type) {
         case TOKEN_STRING: {
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s: \"",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type)
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type)
             );
 
-            for ( const char* character = lexeme.token.as_string
+            for ( const char* character = lexeme->token.as_string
                 ; '\0' != *character
                 ; ++character) {
                 switch (*character) {
@@ -372,9 +338,9 @@ void dump_lexemes( FILE *restrict stream
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s: %ld\n",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type),
-                 lexeme.token.as_integer
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type),
+                 lexeme->token.as_integer
             );
         } break;
 
@@ -382,9 +348,9 @@ void dump_lexemes( FILE *restrict stream
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s: %f\n",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type),
-                 lexeme.token.as_float
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type),
+                 lexeme->token.as_float
             );
         } break;
 
@@ -392,9 +358,9 @@ void dump_lexemes( FILE *restrict stream
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s: %s\n",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type),
-                 lexeme.token.as_atom
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type),
+                 lexeme->token.as_atom
             );
         } break;
 
@@ -402,8 +368,8 @@ void dump_lexemes( FILE *restrict stream
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s\n",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type)
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type)
             );
         } break;
 
@@ -411,9 +377,9 @@ void dump_lexemes( FILE *restrict stream
             (void)fprintf(
                  stream,
                  "%s(%zu:%zu): %s: %c\n",
-                 program_name, lexeme.line, lexeme.column,
-                 token_type_name(lexeme.type),
-                 lexeme.token.as_parenthesis
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type),
+                 lexeme->token.as_parenthesis
             );
         } break;
 
@@ -424,7 +390,8 @@ void dump_lexemes( FILE *restrict stream
 
 
 
-#define SOURCE_FILE "test.tlpin"
+#define SOURCE_FILE     "test.tlpin"
+#define READ_CHUNK_SIZE 1024
 
 int main(void) {
     FILE* source = fopen(SOURCE_FILE, "r");
@@ -433,7 +400,7 @@ int main(void) {
         return 1;
     };
 
-    string_t contents = read_entire_file(source);
+    sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE);
     (void)fclose(source);
 
     LexemeArray lexemes = lex_program(&contents, SOURCE_FILE);
