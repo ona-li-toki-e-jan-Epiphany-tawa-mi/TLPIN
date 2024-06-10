@@ -53,6 +53,29 @@ typedef ARRAY_OF(char) sstring_t;
  */
 char* sstring_to_cstring(const sstring_t* string);
 
+typedef enum {
+    SSTRING_CONVERT_SUCCESS,    // Successful conversion.
+    SSTRING_CONVERT_PARSE_FAIL, // Not a valid number.
+    SSTRING_CONVERT_UNDERFLOW,  // Conversion caused an underflow.
+    SSTRING_CONVERT_OVERFLOW    // Conversion caused an overflow.
+} SstringConvertResult;
+
+/**
+ * Converts the string into a long int with the given base/radix.
+ * result is written to to show whether the conversion was successful. You can
+ * leave it NULL to ignore the result.
+ * Otherwise, it behaves the same as strtol.
+ */
+long int sstring_to_long(const sstring_t* string, int base, SstringConvertResult* result);
+
+/**
+ * Converts the string into a double.
+ * result is written to to show whether the conversion was successful. You can
+ * leave it NULL to ignore the result.
+ * Otherwise, it behaves the same as strtod.
+ */
+double sstring_str_to_double(const sstring_t* string, SstringConvertResult* result);
+
 /**
  * Reads in a file stream until EOF and returns a string with it's contents.
  * Reads, at most, chunk_size bytes at a time.
@@ -67,27 +90,32 @@ void sstring_free(sstring_t* string);
 /**
  * Computes the size, in bytes, of the string's elements.
  */
-inline size_t sstring_element_byte_size(const sstring_t* string);
+size_t sstring_element_byte_size(const sstring_t* string);
 
 /**
  * Computes the size, in bytes, of the occupied portion of the string.
  */
-inline size_t sstring_occupied_byte_size(const sstring_t* string);
+size_t sstring_occupied_byte_size(const sstring_t* string);
 
 /**
  * Computes the size, in bytes, of the string.
  */
-inline size_t sstring_byte_size(const sstring_t* string);
+size_t sstring_byte_size(const sstring_t* string);
 
 /**
  * Fetches the character at the given index in the string.
  */
-inline char sstring_at(const sstring_t* string, size_t index);
+char sstring_at(const sstring_t* string, size_t index);
 
 /**
  * Sets the character at the given index in the string.
  */
-inline void sstring_set(sstring_t* string, size_t index, char value);
+void sstring_set(sstring_t* string, size_t index, char value);
+
+/**
+ * Swaps the contents of the strings.
+ */
+void sstring_swap(sstring_t* string1, sstring_t* string2);
 
 /**
  * Reallocates the memory of the string if it's capacity has changed.
@@ -125,6 +153,10 @@ void sstring_map(sstring_t* string, char(*function)(char));
 
 #ifdef SIZED_STRING_IMPLEMENTATION
 
+#include <errno.h>
+#include <limits.h>
+#include <math.h>
+
 char* sstring_to_cstring(const sstring_t* string) {
     char* cstring = malloc(string->count + 1);
     if (NULL == cstring) {
@@ -136,9 +168,59 @@ char* sstring_to_cstring(const sstring_t* string) {
     }
 
     (void)memcpy(cstring, string->elements, string->count);
-    cstring[string->count + 1] = '\0';
+    cstring[string->count] = '\0';
 
     return cstring;
+}
+
+long int sstring_to_long(const sstring_t* string, int base, SstringConvertResult* result) {
+    char cstring[string->count + 1];
+    (void)memcpy(cstring, string->elements, string->count);
+    cstring[string->count] = '\0';
+
+    errno = 0;
+
+    char*    end_pointer = cstring;
+    long int value       = strtol(cstring, &end_pointer, base);
+
+    if (NULL != result) {
+        if (string->count != (size_t)(end_pointer - cstring)) {
+            *result = SSTRING_CONVERT_PARSE_FAIL;
+        } else if (ERANGE == errno && LONG_MAX == value) {
+            *result = SSTRING_CONVERT_OVERFLOW;
+        } else if (ERANGE == errno) {
+            *result = SSTRING_CONVERT_UNDERFLOW;
+        } else {
+            *result = SSTRING_CONVERT_SUCCESS;
+        }
+    }
+
+    return value;
+}
+
+double sstring_to_double(const sstring_t* string, SstringConvertResult* result) {
+    char cstring[string->count + 1];
+    (void)memcpy(cstring, string->elements, string->count);
+    cstring[string->count] = '\0';
+
+    errno = 0;
+
+    char*  end_pointer = cstring;
+    double value       = strtod(cstring, &end_pointer);
+
+    if (NULL != result) {
+        if (string->count != (size_t)(end_pointer - cstring)) {
+            *result = SSTRING_CONVERT_PARSE_FAIL;
+        } else if (ERANGE == errno && fabs(HUGE_VAL) == fabs(value)) {
+            *result = SSTRING_CONVERT_OVERFLOW;
+        } else if (ERANGE == errno) {
+            *result = SSTRING_CONVERT_UNDERFLOW;
+        } else {
+            *result = SSTRING_CONVERT_SUCCESS;
+        }
+    }
+
+    return value;
 }
 
 sstring_t sstring_read_file(FILE* file, size_t chunk_size) {
@@ -176,6 +258,10 @@ char sstring_at(const sstring_t* string, size_t index) {
 
 void sstring_set(sstring_t* string, size_t index, char value) {
     array_set(string, index, value);
+}
+
+void sstring_swap(sstring_t* string1, sstring_t* string2) {
+    array_swap(string1, string2);
 }
 
 void sstring_reallocate(sstring_t* string) {
