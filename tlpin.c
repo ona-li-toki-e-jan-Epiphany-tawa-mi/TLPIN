@@ -47,19 +47,24 @@ typedef struct {
     size_t    column;
 } Lexeme;
 
-typedef ARRAY_OF(Lexeme) LexemeArray;
-
-void lexeme_free(Lexeme* lexeme) {
+void lexeme_free(Lexeme* lexeme, array_free_t free) {
     switch (lexeme->type) {
-
-    case TOKEN_STRING:      sstring_free(&lexeme->token.as_string); break;
+    case TOKEN_STRING:      sstring_free(&lexeme->token.as_string, free); break;
     case TOKEN_INTEGER:     break;
     case TOKEN_FLOAT:       break;
-    case TOKEN_ATOM:        sstring_free(&lexeme->token.as_atom); break;
+    case TOKEN_ATOM:        sstring_free(&lexeme->token.as_atom, free); break;
     case TOKEN_NEWLINE:     break;
     case TOKEN_PARENTHESIS: break;
     default:                break;
     }
+}
+
+typedef ARRAY_OF(Lexeme) LexemeArray;
+
+void lexeme_array_free(LexemeArray* lexemes, array_free_t free) {
+    for (size_t i = 0; i < lexemes->count; ++i)
+        lexeme_free(&array_at(lexemes, i), free);
+    array_free(lexemes, free);
 }
 
 typedef struct {
@@ -72,6 +77,7 @@ typedef struct {
     size_t           column;
     size_t           multibyte_line;
     size_t           multibyte_column;
+    array_realloc_t  realloc;
 } LexerContext;
 
 void try_append_multibyte_lexeme(LexerContext* context) {
@@ -153,7 +159,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
 
     // Else, we assume it is an atom.
     lexeme.type = TOKEN_ATOM;
-    sstring_resize(&lexeme.token.as_atom, context->token_buffer.count);
+    sstring_resize(&lexeme.token.as_atom, context->token_buffer.count, context->realloc);
     (void)memcpy(
          lexeme.token.as_atom.elements,
          context->token_buffer.elements,
@@ -163,7 +169,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
     goto lend;
 
  lend:
-    array_append(&context->lexemes, lexeme);
+    array_append(&context->lexemes, lexeme, context->realloc);
     context->token_buffer.count = 0;
     context->multibyte_line     = SIZE_MAX;
     context->multibyte_column   = SIZE_MAX;
@@ -204,10 +210,10 @@ void lex_string(LexerContext* context) {
             character = sstring_at(context->program, context->program_index);
 
             switch (character) {
-            case '"':  sstring_append(&string, character); break;
-            case '\\': sstring_append(&string, character); break;
-            case 'n':  sstring_append(&string, '\n');      break;
-            case 't':  sstring_append(&string, '\t');      break;
+            case '"':  sstring_append(&string, character, context->realloc); break;
+            case '\\': sstring_append(&string, character, context->realloc); break;
+            case 'n':  sstring_append(&string, '\n',      context->realloc); break;
+            case 't':  sstring_append(&string, '\t',      context->realloc); break;
 
             default: {
                 (void)fprintf(
@@ -225,7 +231,7 @@ void lex_string(LexerContext* context) {
         } break;
 
         default: {
-            sstring_append(&string, character);
+            sstring_append(&string, character, context->realloc);
             ++context->column;
         } break;
         };
@@ -239,7 +245,7 @@ void lex_string(LexerContext* context) {
         .line   = context->line,
         .column = context->column
     };
-    array_append(&context->lexemes, lexeme);
+    array_append(&context->lexemes, lexeme, context->realloc);
 
     context->multibyte_line   = SIZE_MAX;
     context->multibyte_column = SIZE_MAX;
@@ -256,7 +262,10 @@ void lex_string(LexerContext* context) {
     exit(1);
 }
 
-LexemeArray lex_program(const sstring_t *restrict program, const char *restrict program_name) {
+LexemeArray lex_program( const sstring_t *restrict program
+                       , const char *restrict program_name
+                       , array_free_t free
+                       , array_realloc_t realloc) {
     LexerContext context = {
         .program           = program,
         .program_index     = 0,
@@ -266,11 +275,12 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
         .line              = 1,
         .column            = 0,
         .multibyte_line    = SIZE_MAX,
-        .multibyte_column  = SIZE_MAX
+        .multibyte_column  = SIZE_MAX,
+        .realloc           = realloc
     };
     // Since we have a limit on how large tokens can be we can preallocate the
     // buffer used to construct them.
-    sstring_resize(&context.token_buffer, MAX_TOKEN_SIZE);
+    sstring_resize(&context.token_buffer, MAX_TOKEN_SIZE, context.realloc);
 
     for (; context.program_index < context.program->count; ++context.program_index) {
         char character = sstring_at(context.program, context.program_index);
@@ -285,7 +295,7 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
                 .line   = context.line,
                 .column = context.column
             };
-            array_append(&context.lexemes, lexeme);
+            array_append(&context.lexemes, lexeme, context.realloc);
 
             ++context.line;
             context.column = 0;
@@ -301,7 +311,7 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
                 .line   = context.line,
                 .column = context.column
             };
-            array_append(&context.lexemes, lexeme);
+            array_append(&context.lexemes, lexeme, context.realloc);
 
             ++context.column;
         } break;
@@ -335,7 +345,7 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
                 context.multibyte_line = context.line;
             if (SIZE_MAX == context.multibyte_column)
                 context.multibyte_column = context.column;
-            sstring_append(&context.token_buffer, character);
+            sstring_append(&context.token_buffer, character, context.realloc);
 
             ++context.column;
         } break;
@@ -344,7 +354,7 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
 
     try_append_multibyte_lexeme(&context);
 
-    array_free(&context.token_buffer);
+    sstring_free(&context.token_buffer, free);
     return context.lexemes;
 }
 
@@ -455,17 +465,14 @@ int main(void) {
         return 1;
     };
 
-    sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE);
+    sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE, realloc);
     (void)fclose(source);
 
-    LexemeArray lexemes = lex_program(&contents, SOURCE_FILE);
-    array_free(&contents);
+    LexemeArray lexemes = lex_program(&contents, SOURCE_FILE, free, realloc);
+    sstring_free(&contents, free);
 
     dump_lexemes(stdout, &lexemes, SOURCE_FILE);
-
-    for (size_t i = 0; i < lexemes.count; ++i)
-        lexeme_free(&array_at(&lexemes, i));
-    array_free(&lexemes);
+    lexeme_array_free(&lexemes, free);
 
     return 0;
 }

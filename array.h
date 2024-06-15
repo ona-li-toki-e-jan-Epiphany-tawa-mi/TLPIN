@@ -48,7 +48,13 @@
 
 
 
-/*
+// typedefs for the memory allocation functions accepted by the arrays.
+typedef void*(*array_realloc_t)(void*, size_t);
+typedef void(*array_free_t)(void*t);
+
+
+
+/**
  * Creates an array type that stores the given type. Intantiations of this type
  * should be zero-initialized to start.
  */
@@ -59,62 +65,56 @@
         size_t capacity;                        \
     }
 
-/*
- * Frees the memory allocated by the dynamic array.
- *
- * array - ARRAY_OF(type)*.
+/**
+ * Frees the memory allocated by the dynamic array and resets it.
+ * @param array (ARRAY_OF(type)*).
+ * @param free (array_free_t) - function to free the underlying memory.
  */
-#define array_free(array)                       \
+#define array_free(array, free)                 \
     {                                           \
-        free((array)->elements);                \
+        (free)((array)->elements);              \
         (array)->elements = NULL;               \
         (array)->count    = 0;                  \
         (array)->capacity = 0;                  \
     }
 
-/*
+/**
  * Computes the size, in bytes, of the dynamic array's elements.
- *
- * array - ARRAY_OF(type)*.
+ * @param array (ARRAY_OF(type)*).
  */
 #define array_element_byte_size(array) (sizeof(*(array)->elements))
 
-/*
+/**
  * Computes the size, in bytes, of the occupied portion of the dynamic array.
- *
- * array - ARRAY_OF(type)*.
+ * @param array (ARRAY_OF(type)*).
  */
 #define array_occupied_byte_size(array) ((array)->count * array_element_byte_size((array)))
 
-/*
+/**
  * Computes the size, in bytes, of the dynamic array.
- *
- * array - ARRAY_OF(type)*.
+ * @param array (ARRAY_OF(type)*).
  */
 #define array_byte_size(array) ((array)->capacity * array_element_byte_size((array)))
 
-/*
+/**
  * Fetches the element at the given index in the dynamic array.
- *
- * array - ARRAY_OF(type)*.
- * index - size_t.
+ * @param array (ARRAY_OF(type)*).
+ * @param index (size_t).
  */
 #define array_at(array, index) (array)->elements[(index)]
 
-/*
+/**
  * Sets the value of the element at the given index in the dynamic array.
- *
- * array - ARRAY_OF(type)*.
- * index - size_t.
- * value - type.
+ * @param array (ARRAY_OF(type)*).
+ * @param index (size_t).
+ * @param value (type).
  */
 #define array_set(array, index, value) ((array)->elements[(index)] = (value))
 
-/*
+/**
  * Swaps the contents of the dynamic arrays.
- *
- * array1 - ARRAY_OF(type)*.
- * array2 - ARRAY_OF(type)*.
+ * @param array1 (ARRAY_OF(type)*).
+ * @param array2 (ARRAY_OF(type)*).
  */
 #define array_swap(array1, array2)                      \
     {                                                   \
@@ -131,80 +131,84 @@
         (array2)->capacity     = array1_capacity;       \
     }
 
-/*
+/**
  * Reallocates the memory of the dynamic array if it's capacity has changed.
- *
- * array - ARRAY_OF(type)*.
+ * @param array (ARRAY_OF(type)*).
+ * @param realloc (array_realloc_t) - function to reallocate the underlying
+ *        memory.
  */
-#define array_reallocate(array)                                                   \
-    {                                                                             \
-        (array)->elements = realloc((array)->elements, array_byte_size((array))); \
-        if (NULL == (array)->elements) {                                          \
-            (void)fputs(                                                          \
-                 "Error: Unable to reallocate dynamic array; buy more RAM lol",   \
-                 stderr                                                           \
-            );                                                                    \
-            exit(1);                                                              \
-        }                                                                         \
+#define array_reallocate(array, realloc)                                            \
+    {                                                                               \
+        (array)->elements = (realloc)((array)->elements, array_byte_size((array))); \
+        if (NULL == (array)->elements) {                                            \
+            (void)fputs(                                                            \
+                 "Error: Unable to reallocate dynamic array; buy more RAM lol",     \
+                 stderr                                                             \
+            );                                                                      \
+            exit(1);                                                                \
+        }                                                                           \
     }
 
-/*
+/**
  * Resizes the dynamic array to the given size. If the size specified is smaller
  * than the array's current size, the array will be truncated.
  * Has no effect if the current and specified size are the same.
- *
- * array - ARRAY_OF(type)*.
- * size  - size_t.
+ * @param array (ARRAY_OF(type)*).
+ * @param size  (size_t).
+ * @param realloc (array_realloc_t) - function to reallocate the underlying
+ *        memory.
  */
-#define array_resize(array, size)               \
-    {                                           \
-        if ((size) != (array)->capacity) {      \
-            if ((size) < (array)->count)        \
-                (array)->count = (size);        \
-            (array)->capacity = (size);         \
-            array_reallocate((array));          \
-        }                                       \
+#define array_resize(array, size, realloc)        \
+    {                                             \
+        if ((size) != (array)->capacity) {        \
+            if ((size) < (array)->count)          \
+                (array)->count = (size);          \
+            (array)->capacity = (size);           \
+            array_reallocate((array), (realloc)); \
+        }                                         \
     }
 
-/*
+/**
  * Increases the size of the dynamic array by the given amount.
- *
- * array - ARRAY_OF(type)*.
- * size  - size_t.
+ * @param array (ARRAY_OF(type)*).
+ * @param size  (size_t).
+ * @param realloc (array_realloc_t) - function to reallocate the underlying
+ *        memory.
  */
-#define array_expand(array, size)                                                 \
-    {                                                                             \
-        (array)->capacity += (size);                                              \
-        (array)->elements = realloc((array)->elements, array_byte_size((array))); \
-        array_reallocate((array));                                                \
+#define array_expand(array, size, realloc)      \
+    {                                           \
+        (array)->capacity += (size);            \
+        array_reallocate((array), (realloc));   \
     }
 
-/*
+/**
  * Appends an element to the dynamic array.
- *
- * array   - ARRAY_OF(type)*.
- * element - type.
+ * @param array   (ARRAY_OF(type)*).
+ * @param element (type).
+ * @param realloc (array_realloc_t) - function to reallocate the underlying
+ *        memory.
  */
-#define array_append(array, element)                                           \
+#define array_append(array, element, realloc)                                  \
     {                                                                          \
         if ((array)->count >= (array)->capacity) {                             \
             (array)->capacity = 0 == (array)->capacity                         \
                               ? ARRAY_INITIAL_CAPACITY                         \
                               : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity; \
                                                                                \
-            array_reallocate((array));                                         \
+            array_reallocate((array), (realloc));                              \
         }                                                                      \
         array_set((array), (array)->count++, (element));                       \
     }
 
-/*
+/**
  * Appends multiple elements to the dynamic array.
- *
- * array         - ARRAY_OF(type)*.
- * buffer        - type*.
- * element_count - size_t.
+ * @param array         (ARRAY_OF(type)*).
+ * @param buffer        (type*).
+ * @param element_count (size_t).
+ * @param realloc (array_realloc_t) - function to reallocate the underlying
+ *        memory.
  */
-#define array_append_many(array, buffer, element_count)                     \
+#define array_append_many(array, buffer, element_count, realloc)            \
     {                                                                       \
         if ((element_count) + (array)->count >= (array)->capacity) {        \
             if (0 == (array)->capacity) {                                   \
@@ -213,7 +217,7 @@
             while ((element_count) + (array)->count >= (array)->capacity) { \
                 (array)->capacity *= ARRAY_CAPACITY_MULTIPLIER;             \
             }                                                               \
-            array_reallocate((array));                                      \
+            array_reallocate((array), (realloc));                           \
         }                                                                   \
                                                                             \
         (void)memcpy(                                                       \

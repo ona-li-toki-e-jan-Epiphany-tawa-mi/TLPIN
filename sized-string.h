@@ -48,9 +48,10 @@
 typedef ARRAY_OF(char) sstring_t;
 
 /**
- * Allocates and returns the C-string version of the sized string.
+ * Returns the C-string version of the sized string.
+ * @param malloc - the function to allocate the c-string with.
  */
-char* sstring_to_cstring(const sstring_t* string);
+char* sstring_to_cstring(const sstring_t* string, void*(*malloc)(size_t));
 
 /**
  * The format specifier expected by format functions like printf. Must be
@@ -60,7 +61,7 @@ char* sstring_to_cstring(const sstring_t* string);
 
 /**
  * The arguments expected by format functions like printf.
- * @param sstring (sstring_t*) - the string to print.
+ * @param sstring (sstring_t*).
  */
 #define SSTRING_FORMAT(sstring) (int)(sstring)->count, (sstring)->elements
 
@@ -89,16 +90,18 @@ double sstring_str_to_double(const sstring_t* string, SstringConvertResult* resu
 
 /**
  * Reads in a file stream until EOF and returns a string with it's contents.
- * Reads, at most, chunk_size bytes at a time.
+ * @param chunk_size - the maximum number of bytes to read at a time.
+ * @param realloc - function to reallocate the underlying memory.
  */
-sstring_t sstring_read_file(FILE* file, size_t chunk_size);
+sstring_t sstring_read_file(FILE* file, size_t chunk_size, array_realloc_t realloc);
 
 
 
 /**
- * Frees the memory allocated by the string.
+ * Frees the memory allocated by the string and resets it.
+ * @param free - function to free the underlying memory.
  */
-void sstring_free(sstring_t* string);
+void sstring_free(sstring_t* string, array_free_t free);
 
 /**
  * Computes the size, in bytes, of the string's elements.
@@ -132,31 +135,38 @@ void sstring_swap(sstring_t* string1, sstring_t* string2);
 
 /**
  * Reallocates the memory of the string if it's capacity has changed.
+ * @param realloc - function to reallocate the underlying memory.
  */
-void sstring_reallocate(sstring_t* string);
+void sstring_reallocate(sstring_t* string, array_realloc_t realloc);
 
 /**
  * Resizes the string to the given size. If the size specified is smaller than
  * the array's current size, the string will be truncated.
  * Has no effect if the current and specified size are the same.
+ * @param realloc - function to reallocate the underlying memory.
  */
-void sstring_resize(sstring_t* string, size_t size);
+void sstring_resize(sstring_t* string, size_t size, array_realloc_t realloc);
 
 /**
  * Increases the size of the string by the given amount.
+ * @param realloc - function to reallocate the underlying memory.
  */
-void sstring_expand(sstring_t* string, size_t size);
+void sstring_expand(sstring_t* string, size_t size, array_realloc_t realloc);
 
 /**
  * Appends a character to the string.
+ * @param realloc - function to reallocate the underlying memory.
  */
-void sstring_append(sstring_t* string, char element);
+void sstring_append(sstring_t* string, char element, array_realloc_t realloc);
 
 /**
  * Appends multiple characters to the string.
+ * @param realloc - function to reallocate the underlying memory.
  */
-void sstring_append_many(sstring_t *restrict string, char *restrict buffer, size_t count);
-
+void sstring_append_many( sstring_t *restrict string
+                        , char *restrict buffer
+                        , size_t count
+                        , array_realloc_t realloc);
 
 
 
@@ -166,7 +176,7 @@ void sstring_append_many(sstring_t *restrict string, char *restrict buffer, size
 #include <limits.h>
 #include <math.h>
 
-char* sstring_to_cstring(const sstring_t* string) {
+char* sstring_to_cstring(const sstring_t* string, void*(*malloc)(size_t)) {
     char* cstring = malloc(string->count + 1);
     if (NULL == cstring) {
             (void)fputs(
@@ -232,11 +242,11 @@ double sstring_to_double(const sstring_t* string, SstringConvertResult* result) 
     return value;
 }
 
-sstring_t sstring_read_file(FILE* file, size_t chunk_size) {
+sstring_t sstring_read_file(FILE* file, size_t chunk_size, array_realloc_t realloc) {
     sstring_t contents = {0};
 
     while (0 == feof(file) && 0 == ferror(file)) {
-        sstring_expand(&contents, chunk_size);
+        sstring_expand(&contents, chunk_size, realloc);
         char*  write_location = contents.elements + contents.count;
         size_t bytes_read     = fread(write_location, sizeof(char), chunk_size, file);
         contents.count += bytes_read;
@@ -245,8 +255,8 @@ sstring_t sstring_read_file(FILE* file, size_t chunk_size) {
     return contents;
 }
 
-void sstring_free(sstring_t* string) {
-    array_free(string);
+void sstring_free(sstring_t* string, array_free_t free) {
+    array_free(string, free);
 }
 
 size_t sstring_element_byte_size(const sstring_t* string) {
@@ -273,26 +283,27 @@ void sstring_swap(sstring_t* string1, sstring_t* string2) {
     array_swap(string1, string2);
 }
 
-void sstring_reallocate(sstring_t* string) {
-    array_reallocate(string);
+void sstring_reallocate(sstring_t* string, array_realloc_t realloc) {
+    array_reallocate(string, realloc);
 }
 
-void sstring_resize(sstring_t* string, size_t size) {
-    array_resize(string, size);
+void sstring_resize(sstring_t* string, size_t size, array_realloc_t realloc) {
+    array_resize(string, size, realloc);
 }
 
-void sstring_expand(sstring_t* string, size_t size) {
-    array_expand(string, size);
+void sstring_expand(sstring_t* string, size_t size, array_realloc_t realloc) {
+    array_expand(string, size, realloc);
 }
 
-void sstring_append(sstring_t* string, char element) {
-    array_append(string, element);
+void sstring_append(sstring_t* string, char element, array_realloc_t realloc) {
+    array_append(string, element, realloc);
 }
 
-void sstring_append_many(sstring_t *restrict string, char *restrict buffer, size_t count) {
-    array_append_many(string, buffer, count);
-}
-
+void sstring_append_many( sstring_t *restrict string
+                        , char *restrict buffer
+                        , size_t count
+                        , array_realloc_t realloc) {
+    array_append_many(string, buffer, count, realloc);
 }
 
 #endif // SIZED_STRING_IMPLEMENTATION
