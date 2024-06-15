@@ -6,7 +6,7 @@ set -xu
 
 
 CC=${CC:-cc}
-CFLAGS=${CFLAGS:--Wall -Wextra -Wswitch-enum -Werror -pedantic}
+CFLAGS=${CFLAGS:--Wall -Wextra -Wswitch-enum -Wconversion -Werror -pedantic}
 
 SOURCE=tlpin.c
 EXECUTABLE=${SOURCE%.c}
