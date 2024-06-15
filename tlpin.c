@@ -10,19 +10,23 @@
 
 typedef enum {
     TOKEN_STRING,
+    TOKEN_CHARACTER,
     TOKEN_FLOAT,
     TOKEN_ATOM,
     TOKEN_NEWLINE,
-    TOKEN_PARENTHESIS
+    TOKEN_PARENTHESIS,
+    TOKEN_BRACKET
 } TokenType;
 
 const char* token_type_name(TokenType type) {
     switch (type) {
     case TOKEN_STRING:      return "TOKEN_STRING";
+    case TOKEN_CHARACTER:   return "TOKEN_CHARACTER";
     case TOKEN_FLOAT:       return "TOKEN_FLOAT";
     case TOKEN_ATOM:        return "TOKEN_ATOM";
     case TOKEN_NEWLINE:     return "TOKEN_NEWLINE";
     case TOKEN_PARENTHESIS: return "TOKEN_PARENTHESIS";
+    case TOKEN_BRACKET:     return "TOKEN_BRACKET";
     default:                assert(false && "Unhandled token type");
     }
 }
@@ -31,10 +35,12 @@ const char* token_type_name(TokenType type) {
 
 typedef union {
     sstring_t as_string;
+    char      as_character;
     double    as_float;
     sstring_t as_atom;
     char      as_newline;
     char      as_parenthesis;
+    char      as_bracket;
 } Token;
 
 typedef struct {
@@ -47,10 +53,12 @@ typedef struct {
 void lexeme_free(Lexeme* lexeme, array_free_t free) {
     switch (lexeme->type) {
     case TOKEN_STRING:      sstring_free(&lexeme->token.as_string, free); break;
+    case TOKEN_CHARACTER:   break;
     case TOKEN_FLOAT:       break;
     case TOKEN_ATOM:        sstring_free(&lexeme->token.as_atom, free); break;
     case TOKEN_NEWLINE:     break;
     case TOKEN_PARENTHESIS: break;
+    case TOKEN_BRACKET:     break;
     default:                break;
     }
 }
@@ -168,8 +176,7 @@ void lex_string(LexerContext* context) {
         } break;
 
         case '\\': {
-            ++context->program_index;
-            if (context->program_index >= context->program->count) {
+            if (++context->program_index >= context->program->count) {
                 goto lunterminated_string;
             }
             character = sstring_at(context->program, context->program_index);
@@ -221,6 +228,82 @@ void lex_string(LexerContext* context) {
     (void)fprintf(
          stderr,
          "%s(%zu:%zu): Error: Unterminated string",
+         context->program_name,
+         context->multibyte_line, context->multibyte_column
+    );
+    exit(1);
+}
+
+void lex_character_literal(LexerContext* context) {
+    context->multibyte_line   = context->line;
+    context->multibyte_column = context->column;
+
+    // Skips past first quote.
+    ++context->column; ++context->program_index;
+    if (context->program_index >= context->program->count) {
+        goto lunterminated_character_literal;
+    }
+
+    char character = sstring_at(context->program, context->program_index);
+
+    switch (character) {
+    case '\\': {
+        ++context->column; ++context->program_index;
+        if (context->program_index >= context->program->count) {
+            goto lunterminated_character_literal;
+        }
+
+        character = sstring_at(context->program, context->program_index);
+
+        switch (character) {
+        case '\'':  character = '\''; break;
+        case '\\': character = '\\';  break;
+        case 'n':  character = '\n';  break;
+        case 't':  character = '\t';  break;
+
+        default: {
+            (void)fprintf(
+                 stderr,
+                 "%s(%zu:%zu): Error: Unknown escape sequence '\\%c'",
+                 context->program_name,
+                 context->line, context->column,
+                 character
+            );
+            context->failed = true;
+        } break;
+        }
+    } break;
+
+    default: break;
+    };
+
+    ++context->column; ++context->program_index;
+    if (context->program_index >= context->program->count) {
+        goto lunterminated_character_literal;
+    }
+    if ('\'' != sstring_at(context->program, context->program_index)) {
+        goto lunterminated_character_literal;
+    };
+
+    ++context->column; ++context->program_index;
+
+    Lexeme lexeme = {
+        .type   = TOKEN_CHARACTER,
+        .token  = { .as_character = character },
+        .line   = context->multibyte_line,
+        .column = context->multibyte_column
+    };
+    array_append(&context->lexemes, lexeme, context->realloc);
+
+    context->multibyte_line   = SIZE_MAX;
+    context->multibyte_column = SIZE_MAX;
+
+    return;
+
+ lunterminated_character_literal:
+    (void)fprintf(
+         stderr,
+         "%s(%zu:%zu): Error: Unterminated character literal",
          context->program_name,
          context->multibyte_line, context->multibyte_column
     );
@@ -282,9 +365,29 @@ LexemeArray lex_program( const sstring_t *restrict program
             ++context.column;
         } break;
 
+        case '{':
+        case '}': {
+            try_append_multibyte_lexeme(&context);
+
+            Lexeme lexeme = {
+                .type   = TOKEN_BRACKET,
+                .token  = { .as_bracket = character },
+                .line   = context.line,
+                .column = context.column
+            };
+            array_append(&context.lexemes, lexeme, context.realloc);
+
+            ++context.column;
+        } break;
+
         case '"': {
             try_append_multibyte_lexeme(&context);
             lex_string(&context);
+        } break;
+
+        case '\'': {
+            try_append_multibyte_lexeme(&context);
+            lex_character_literal(&context);
         } break;
 
         case ' ':
@@ -369,6 +472,39 @@ void dump_lexemes( FILE *restrict stream
             (void)fputs("\"\n", stream);
         } break;
 
+        case TOKEN_CHARACTER: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu:%zu): %s: '",
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type)
+            );
+
+            char character = lexeme->token.as_character;
+
+            switch (character) {
+            case '\'':
+            case '\\': {
+                (void)fputc('\\', stream);
+                (void)fputc(character, stream);
+            } break;
+
+            case '\n': {
+                (void)fputs("\\n", stream);
+            } break;
+
+            case '\t': {
+                (void)fputs("\\t", stream);
+            } break;
+
+            default: {
+                (void)fputc(character, stream);
+            } break;
+            }
+
+            (void)fputs("'\n", stream);
+        } break;
+
         case TOKEN_FLOAT: {
             (void)fprintf(
                  stream,
@@ -405,6 +541,16 @@ void dump_lexemes( FILE *restrict stream
                  program_name, lexeme->line, lexeme->column,
                  token_type_name(lexeme->type),
                  lexeme->token.as_parenthesis
+            );
+        } break;
+
+        case TOKEN_BRACKET: {
+            (void)fprintf(
+                 stream,
+                 "%s(%zu:%zu): %s: %c\n",
+                 program_name, lexeme->line, lexeme->column,
+                 token_type_name(lexeme->type),
+                 lexeme->token.as_bracket
             );
         } break;
 
