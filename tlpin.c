@@ -74,6 +74,7 @@ typedef struct {
     size_t           multibyte_line;
     size_t           multibyte_column;
     array_realloc_t  realloc;
+    bool             failed;
 } LexerContext;
 
 void try_append_multibyte_lexeme(LexerContext* context) {
@@ -102,7 +103,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
              lexeme.line, lexeme.column,
              SSTRING_FORMAT(&context->token_buffer)
         );
-        exit(1);
+        context->failed = true;
     } break;
     case SSTRING_CONVERT_OVERFLOW: {
         (void)fprintf(
@@ -113,13 +114,14 @@ void try_append_multibyte_lexeme(LexerContext* context) {
              lexeme.line, lexeme.column,
              SSTRING_FORMAT(&context->token_buffer)
         );
-        exit(1);
+        context->failed = true;
     } break;
     case SSTRING_CONVERT_PARSE_FAIL: break;
     default: assert(false && "Unhandled sstring conversion result");
     }
 
     // If that fails, we assume it is an atom.
+    // TODO make this an array.h function.
     lexeme.type = TOKEN_ATOM;
     sstring_resize(&lexeme.token.as_atom, context->token_buffer.count, context->realloc);
     (void)memcpy(
@@ -186,7 +188,7 @@ void lex_string(LexerContext* context) {
                      context->line, context->column,
                      character
                 );
-                exit(1);
+                context->failed = true;
             } break;
             };
 
@@ -239,7 +241,8 @@ LexemeArray lex_program( const sstring_t *restrict program
         .column            = 0,
         .multibyte_line    = SIZE_MAX,
         .multibyte_column  = SIZE_MAX,
-        .realloc           = realloc
+        .realloc           = realloc,
+        .failed            = false
     };
     // Since we have a limit on how large tokens can be we can preallocate the
     // buffer used to construct them.
@@ -304,10 +307,12 @@ LexemeArray lex_program( const sstring_t *restrict program
                 exit(1);
             }
 
-            if (SIZE_MAX == context.multibyte_line)
+            if (SIZE_MAX == context.multibyte_line) {
                 context.multibyte_line = context.line;
-            if (SIZE_MAX == context.multibyte_column)
+            }
+            if (SIZE_MAX == context.multibyte_column) {
                 context.multibyte_column = context.column;
+            }
             sstring_append(&context.token_buffer, character, context.realloc);
 
             ++context.column;
@@ -316,6 +321,8 @@ LexemeArray lex_program( const sstring_t *restrict program
     }
 
     try_append_multibyte_lexeme(&context);
+
+    if (context.failed) exit(1);
 
     sstring_free(&context.token_buffer, free);
     return context.lexemes;
