@@ -214,8 +214,8 @@ void lex_string(LexerContext* context) {
     Lexeme lexeme = {
         .type   = TOKEN_STRING,
         .token  = { .as_string = string },
-        .line   = context->line,
-        .column = context->column
+        .line   = context->multibyte_line,
+        .column = context->multibyte_column
     };
     array_append(&context->lexemes, lexeme, context->realloc);
 
