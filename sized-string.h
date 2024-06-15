@@ -157,10 +157,6 @@ void sstring_append(sstring_t* string, char element);
  */
 void sstring_append_many(sstring_t *restrict string, char *restrict buffer, size_t count);
 
-/**
- * Applies a function to each of the characters of the string.
- */
-void sstring_map(sstring_t* string, char(*function)(char));
 
 
 
@@ -297,8 +293,6 @@ void sstring_append_many(sstring_t *restrict string, char *restrict buffer, size
     array_append_many(string, buffer, count);
 }
 
-void sstring_map(sstring_t* string, char(*function)(char)) {
-    array_map(string, function);
 }
 
 #endif // SIZED_STRING_IMPLEMENTATION

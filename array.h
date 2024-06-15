@@ -223,20 +223,3 @@
          );                                                                 \
         (array)->count += (element_count);                                  \
     }
-
-/*
- * Applies a function to each of the elements of the dynamic array.
- *
- * array    - ARRAY_OF(type)*.
- * function - type(*)(type).
- */
-#define array_map(array, function)                    \
-    {                                                 \
-        for (size_t i = 0; i < (array)->count; ++i) { \
-            array_set(                                \
-                (array),                              \
-                i,                                    \
-                (function)(array_at((array), i))      \
-            );                                        \
-        }                                             \
-    }
