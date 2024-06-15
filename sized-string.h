@@ -25,8 +25,7 @@
 /*
  * Dead-simple sized strings.
  *
- * Sized strings are really just a specific implementation of the dymanic arrays
- * from array.h.
+ * Sized strings are a specialization of the dymanic arrays from array.h.
  *
  * The functions not also present for dynamic arrays occur first.
  *
@@ -52,6 +51,18 @@ typedef ARRAY_OF(char) sstring_t;
  * Allocates and returns the C-string version of the sized string.
  */
 char* sstring_to_cstring(const sstring_t* string);
+
+/**
+ * The format specifier expected by format functions like printf. Must be
+ * prepended with a '%'.
+ */
+#define SSTRING_PRINT ".*s"
+
+/**
+ * The arguments expected by format functions like printf.
+ * @param sstring (sstring_t*) - the string to print.
+ */
+#define SSTRING_FORMAT(sstring) (int)(sstring)->count, (sstring)->elements
 
 typedef enum {
     SSTRING_CONVERT_SUCCESS,    // Successful conversion.
@@ -81,6 +92,8 @@ double sstring_str_to_double(const sstring_t* string, SstringConvertResult* resu
  * Reads, at most, chunk_size bytes at a time.
  */
 sstring_t sstring_read_file(FILE* file, size_t chunk_size);
+
+
 
 /**
  * Frees the memory allocated by the string.

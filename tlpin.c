@@ -94,20 +94,22 @@ void try_append_multibyte_lexeme(LexerContext* context) {
     case SSTRING_CONVERT_UNDERFLOW: {
         (void)fprintf(
              stderr,
-             "%s(%zu:%zu): Error: Integer conversion of '%.*s' results in underflow",
+             "%s(%zu:%zu): Error: Integer conversion of '%" SSTRING_PRINT
+             "' results in underflow",
              context->program_name,
              lexeme.line, lexeme.column,
-             (int)context->token_buffer.count, context->token_buffer.elements
+             SSTRING_FORMAT(&context->token_buffer)
         );
         exit(1);
     } break;
     case SSTRING_CONVERT_OVERFLOW: {
         (void)fprintf(
              stderr,
-             "%s(%zu:%zu): Error: Integer conversion of '%.*s' results in overflow",
+             "%s(%zu:%zu): Error: Integer conversion of '%" SSTRING_PRINT
+             "' results in overflow",
              context->program_name,
-             lexeme.line,                 lexeme.column,
-             (int)context->token_buffer.count, context->token_buffer.elements
+             lexeme.line, lexeme.column,
+             SSTRING_FORMAT(&context->token_buffer)
         );
         exit(1);
     } break;
@@ -126,20 +128,22 @@ void try_append_multibyte_lexeme(LexerContext* context) {
     case SSTRING_CONVERT_UNDERFLOW: {
         (void)fprintf(
              stderr,
-             "%s(%zu:%zu): Error: Float conversion of '%.*s' results in underflow",
+             "%s(%zu:%zu): Error: Float conversion of '%" SSTRING_PRINT
+             "' results in underflow",
              context->program_name,
              lexeme.line, lexeme.column,
-             (int)context->token_buffer.count, context->token_buffer.elements
+             SSTRING_FORMAT(&context->token_buffer)
         );
         exit(1);
     } break;
     case SSTRING_CONVERT_OVERFLOW: {
         (void)fprintf(
              stderr,
-             "%s(%zu:%zu): Error: Float conversion of '%.*s' results in overflow",
+             "%s(%zu:%zu): Error: Float conversion of '%" SSTRING_PRINT
+             "' results in overflow",
              context->program_name,
-             lexeme.line,                 lexeme.column,
-             (int)context->token_buffer.count, context->token_buffer.elements
+             lexeme.line, lexeme.column,
+             SSTRING_FORMAT(&context->token_buffer)
         );
         exit(1);
     } break;
@@ -317,11 +321,12 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
             if (MAX_TOKEN_SIZE <= context.token_buffer.count) {
                 (void)fprintf(
                      stderr,
-                     "%s(%zu:%zu): Error: Encountered token larger than the maximum allowed size %zu: %.*s",
+                     "%s(%zu:%zu): Error: Encountered token larger than the"
+                     "maximum allowed size %zu: %" SSTRING_PRINT,
                      context.program_name,
                      context.line, context.column,
                      (size_t)MAX_TOKEN_SIZE,
-                     (int)context.token_buffer.count, context.token_buffer.elements
+                     SSTRING_FORMAT(&context.token_buffer)
                 );
                 exit(1);
             }
@@ -407,10 +412,10 @@ void dump_lexemes( FILE *restrict stream
         case TOKEN_ATOM: {
             (void)fprintf(
                  stream,
-                 "%s(%zu:%zu): %s: %.*s\n",
+                 "%s(%zu:%zu): %s: %" SSTRING_PRINT "\n",
                  program_name, lexeme->line, lexeme->column,
                  token_type_name(lexeme->type),
-                 (int)lexeme->token.as_atom.count, lexeme->token.as_atom.elements
+                 SSTRING_FORMAT(&lexeme->token.as_atom)
             );
         } break;
 
