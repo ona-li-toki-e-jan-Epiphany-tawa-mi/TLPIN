@@ -10,7 +10,6 @@
 
 typedef enum {
     TOKEN_STRING,
-    TOKEN_INTEGER,
     TOKEN_FLOAT,
     TOKEN_ATOM,
     TOKEN_NEWLINE,
@@ -20,7 +19,6 @@ typedef enum {
 const char* token_type_name(TokenType type) {
     switch (type) {
     case TOKEN_STRING:      return "TOKEN_STRING";
-    case TOKEN_INTEGER:     return "TOKEN_INTEGER";
     case TOKEN_FLOAT:       return "TOKEN_FLOAT";
     case TOKEN_ATOM:        return "TOKEN_ATOM";
     case TOKEN_NEWLINE:     return "TOKEN_NEWLINE";
@@ -33,7 +31,6 @@ const char* token_type_name(TokenType type) {
 
 typedef union {
     sstring_t as_string;
-    int64_t   as_integer;
     double    as_float;
     sstring_t as_atom;
     char      as_newline;
@@ -50,7 +47,6 @@ typedef struct {
 void lexeme_free(Lexeme* lexeme, array_free_t free) {
     switch (lexeme->type) {
     case TOKEN_STRING:      sstring_free(&lexeme->token.as_string, free); break;
-    case TOKEN_INTEGER:     break;
     case TOKEN_FLOAT:       break;
     case TOKEN_ATOM:        sstring_free(&lexeme->token.as_atom, free); break;
     case TOKEN_NEWLINE:     break;
@@ -89,41 +85,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
 
     SstringConvertResult result;
 
-    // First, we try to parse the lexeme as an integer.
-    int64_t as_integer  = sstring_to_long(&context->token_buffer, 10, &result);
-    switch (result) {
-    case SSTRING_CONVERT_SUCCESS: {
-        lexeme.type             = TOKEN_INTEGER;
-        lexeme.token.as_integer = as_integer;
-        goto lend;
-    } break;
-    case SSTRING_CONVERT_UNDERFLOW: {
-        (void)fprintf(
-             stderr,
-             "%s(%zu:%zu): Error: Integer conversion of '%" SSTRING_PRINT
-             "' results in underflow",
-             context->program_name,
-             lexeme.line, lexeme.column,
-             SSTRING_FORMAT(&context->token_buffer)
-        );
-        exit(1);
-    } break;
-    case SSTRING_CONVERT_OVERFLOW: {
-        (void)fprintf(
-             stderr,
-             "%s(%zu:%zu): Error: Integer conversion of '%" SSTRING_PRINT
-             "' results in overflow",
-             context->program_name,
-             lexeme.line, lexeme.column,
-             SSTRING_FORMAT(&context->token_buffer)
-        );
-        exit(1);
-    } break;
-    case SSTRING_CONVERT_PARSE_FAIL: break;
-    default: assert(false && "Unhandled sstring conversion result");
-    }
-
-    // If that fails, we then try to parse the lexeme as a float.
+    // We try to parse it as a float.
     double as_float = sstring_to_double(&context->token_buffer, &result);
     switch (result) {
     case SSTRING_CONVERT_SUCCESS: {
@@ -157,7 +119,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
     default: assert(false && "Unhandled sstring conversion result");
     }
 
-    // Else, we assume it is an atom.
+    // If that fails, we assume it is an atom.
     lexeme.type = TOKEN_ATOM;
     sstring_resize(&lexeme.token.as_atom, context->token_buffer.count, context->realloc);
     (void)memcpy(
@@ -399,16 +361,6 @@ void dump_lexemes( FILE *restrict stream
             (void)fputs("\"\n", stream);
         } break;
 
-        case TOKEN_INTEGER: {
-            (void)fprintf(
-                 stream,
-                 "%s(%zu:%zu): %s: %ld\n",
-                 program_name, lexeme->line, lexeme->column,
-                 token_type_name(lexeme->type),
-                 lexeme->token.as_integer
-            );
-        } break;
-
         case TOKEN_FLOAT: {
             (void)fprintf(
                  stream,
@@ -465,14 +417,14 @@ int main(void) {
         return 1;
     };
 
-    sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE, realloc);
+    sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE, &realloc);
     (void)fclose(source);
 
-    LexemeArray lexemes = lex_program(&contents, SOURCE_FILE, free, realloc);
-    sstring_free(&contents, free);
+    LexemeArray lexemes = lex_program(&contents, SOURCE_FILE, &free, &realloc);
+    sstring_free(&contents, &free);
 
     dump_lexemes(stdout, &lexemes, SOURCE_FILE);
-    lexeme_array_free(&lexemes, free);
+    lexeme_array_free(&lexemes, &free);
 
     return 0;
 }
