@@ -127,6 +127,7 @@ void try_append_multibyte_lexeme(LexerContext* context) {
          context->token_buffer.elements,
          context->token_buffer.count
     );
+    lexeme.token.as_atom.count = context->token_buffer.count;
     context->token_buffer.count = 0;
     goto lend;
 
