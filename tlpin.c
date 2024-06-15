@@ -339,6 +339,7 @@ LexemeArray lex_program(const sstring_t *restrict program, const char *restrict 
 
     try_append_multibyte_lexeme(&context);
 
+    array_free(&context.token_buffer);
     return context.lexemes;
 }
 
