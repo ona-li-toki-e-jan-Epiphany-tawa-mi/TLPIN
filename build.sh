@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Display commands, error on unset variable.
+# Display commands, error on unset variables.
 set -xu
 
 
