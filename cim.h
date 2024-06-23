@@ -52,8 +52,14 @@
 
 // Floats are not actually guaranteed to be of the specified size, but the names
 // are better IMO.
-typedef float float32_t;
-typedef double float64_t;
+typedef float       float32_t;
+typedef double      float64_t;
+typedef long double float128_t;
+
+// Format specifiers like in inttypes.h.
+#define PRIf32  "f"
+#define PRIf64  "f"
+#define PRIf128 "lf"
 
 ////////////////////////////////////////////////////////////////////////////////
 // Better Types END                                                           //
