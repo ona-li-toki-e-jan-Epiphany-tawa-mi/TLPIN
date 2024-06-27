@@ -584,7 +584,8 @@ struct Value {
 
 typedef enum {
     FUNCTION_NATIVE,
-    FUNCTION_DEFINED
+    FUNCTION_DEFINED,
+    FUNCTION_LITERAL
 } FunctionType;
 
 typedef struct Function Function;
@@ -596,12 +597,14 @@ struct Function {
     union {
         void(*as_native)(ValueArray*);
         FunctionArray as_defined;
+        Value         as_literal;
     };
 };
 
 
 
-void native_add(ValueArray* stack) {
+// Adds values.
+void native_pona(ValueArray* stack) {
     // TODO: make proper run time error.
     assert(stack->count >= 2 && "Stack Underflow");
 
@@ -652,25 +655,35 @@ void dump_stack(const ValueArray* stack) {
 
 #define ARRAY_SIZE(array) sizeof(array)/sizeof(array[0])
 
-const Value initial_stack[] = {
-    {
-        .type      = VALUE_NUMBER,
-        .as_number = 10
-    },
-    {
-        .type      = VALUE_NUMBER,
-        .as_number = 24.8
-    },
-    {
-        .type      = VALUE_NUMBER,
-        .as_number = 5
-    }
-};
-
 const Function initial_program[] = {
     {
+        .type = FUNCTION_LITERAL,
+        .as_literal = {
+            .type = VALUE_NUMBER,
+            .as_number = 30
+        }
+    },
+    {
+        .type = FUNCTION_LITERAL,
+        .as_literal = {
+            .type = VALUE_NUMBER,
+            .as_number = 10
+        }
+    },
+    {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_add
+        .as_native = &native_pona
+    },
+    {
+        .type = FUNCTION_LITERAL,
+        .as_literal = {
+            .type = VALUE_NUMBER,
+            .as_number = 20
+        }
+    },
+    {
+        .type = FUNCTION_NATIVE,
+        .as_native = &native_ike
     }
 };
 
@@ -690,8 +703,7 @@ int main(void) {
     /* //cparse_program(&lexemes); */
     /* lexeme_array_free(&lexemes, &free); */
 
-    ValueArray    stack   = {0};
-    array_append_many(&stack, initial_stack, ARRAY_SIZE(initial_stack), &realloc);
+    ValueArray stack = {0};
 
     FunctionArray program = {0};
     array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &realloc);
