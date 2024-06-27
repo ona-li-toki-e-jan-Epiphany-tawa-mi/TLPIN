@@ -593,7 +593,7 @@ typedef enum {
 
 typedef enum {
     FUNCTION_NATIVE,
-    FUNCTION_DEFINED,
+    FUNCTION_DEFUN,
     FUNCTION_LITERAL
 } FunctionType;
 
@@ -605,7 +605,7 @@ struct Function {
     FunctionType type;
     union {
         Error(*as_native)(ValueArray*);
-        FunctionArray as_defined;
+        FunctionArray as_defun;
         Value         as_literal;
     };
 };
@@ -764,8 +764,8 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
         Error result;
 
         switch (function->type) {
-        case FUNCTION_DEFINED: {
-            result = execute_functions(&function->as_defined, stack);
+        case FUNCTION_DEFUN: {
+            result = execute_functions(&function->as_defun, stack);
         } break;
         case FUNCTION_NATIVE: {
             result = function->as_native(stack);
