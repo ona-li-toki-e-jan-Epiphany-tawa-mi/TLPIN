@@ -583,6 +583,11 @@ struct Value {
 
 
 typedef enum {
+    ERROR_OK,
+    ERROR_DOMAIN
+} Error;
+
+typedef enum {
     FUNCTION_NATIVE,
     FUNCTION_DEFINED,
     FUNCTION_LITERAL
@@ -595,7 +600,7 @@ typedef ARRAY_OF(Function) FunctionArray;
 struct Function {
     FunctionType type;
     union {
-        void(*as_native)(ValueArray*);
+        Error(*as_native)(ValueArray*);
         FunctionArray as_defined;
         Value         as_literal;
     };
@@ -603,69 +608,125 @@ struct Function {
 
 
 
-// Adds values.
-void native_pona(ValueArray* stack) {
-    // TODO: make proper run time error.
-    assert(stack->count >= 2 && "Stack Underflow");
+/**
+ * Addition - dyadic.
+ *
+ * On number,number - add numbers
+ * On character,* or *,character - domain error.
+ * On array,number or number,array - TODO.
+ * On array,array - TODO.
+ */
+Error native_pona(ValueArray* stack) {
+    assert(stack->count >= 2 && "Unexpected stack underflow");
 
     Value* a = &stack->elements[stack->count - 2];
-    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
     Value* b = &stack->elements[stack->count - 1];
-    assert(b->type == VALUE_NUMBER && "TODO: handle non-number types");
 
-    a->as_number = a->as_number + b->as_number;
-    --stack->count;
+    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type)
+        return ERROR_DOMAIN;
+
+    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
+        a->as_number = a->as_number + b->as_number;
+        --stack->count;
+        return ERROR_OK;
+    }
+
+    assert(0 && "TODO: unhandled types");
 }
 
-// Subtracts values.
-void native_ike(ValueArray* stack) {
-    // TODO: make proper run time error.
-    assert(stack->count >= 2 && "Stack Underflow");
+/**
+ * Subtraction - dyadic.
+ *
+ * On number,number - subtract numbers
+ * On character,* or *,character - domain error.
+ * On array,number or number,array - TODO.
+ * On array,array - TODO.
+ */
+Error native_ike(ValueArray* stack) {
+    assert(stack->count >= 2 && "Unexpected stack underflow");
 
     Value* a = &stack->elements[stack->count - 2];
-    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
     Value* b = &stack->elements[stack->count - 1];
-    assert(b->type == VALUE_NUMBER && "TODO: handle non-number types");
 
-    a->as_number = a->as_number - b->as_number;
-    --stack->count;
+    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type)
+        return ERROR_DOMAIN;
+
+    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
+        a->as_number = a->as_number - b->as_number;
+        --stack->count;
+        return ERROR_OK;
+    }
+
+    assert(0 && "TODO: unhandled types");
 }
 
-// Index generator.
-void native_nanpa(ValueArray* stack) {
-    // TODO: make proper run time error.
-    assert(stack->count >= 1 && "Stack Underflow");
+/**
+ * Index generator - monadic
+ *
+ * On number - generate array of numbers [ 1, 2, 3, ..., n ]
+ * On character - domain error.
+ * On array - TODO.
+ */
+Error native_nanpa(ValueArray* stack) {
+    assert(stack->count >= 1 && "Unexpected stack underflow");
 
     Value* a = &stack->elements[stack->count - 1];
-    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
-    float64_t max_index = a->as_number;
 
-    Value index_array = {
-        .type = VALUE_ARRAY,
-        .as_array = {0}
-    };
-    Value index = {0};
-    index.type = VALUE_NUMBER;
-    for (float64_t i = 1; i <= max_index; ++i) {
-        index.as_number = i;
-        // TODO: make preallocate memory.
-        array_append(&index_array.as_array, index, &realloc);
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        float64_t max_index = a->as_number;
+
+        Value index_array = {
+            .type = VALUE_ARRAY,
+            .as_array = {0}
+        };
+        Value index = {0};
+        index.type = VALUE_NUMBER;
+
+        for (float64_t i = 1; i <= max_index; ++i) {
+            index.as_number = i;
+            // TODO: make preallocate memory.
+            array_append(&index_array.as_array, index, &realloc);
+        }
+
+        stack->elements[stack->count - 1] = index_array;
+    } break;
+
+    case VALUE_CHARACTER: return ERROR_DOMAIN;
+
+    case VALUE_ARRAY: assert(0 && "TODO");
+
+    default: assert(0 && "Encountered unexpected value type");
     }
 
-    stack->elements[stack->count - 1] = index_array;
+    return ERROR_OK;
 }
 
-void execute_functions(const FunctionArray* functions, ValueArray* stack) {
+Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
     for (size_t i = 0; i < functions->count; ++i) {
         const Function* function = &functions->elements[i];
+        Error result;
 
         switch (function->type) {
-        case FUNCTION_DEFINED: execute_functions(&function->as_defined, stack);     break;
-        case FUNCTION_NATIVE:  function->as_native(stack);                          break;
-        case FUNCTION_LITERAL: array_append(stack, function->as_literal, &realloc); break;
+        case FUNCTION_DEFINED: {
+            result = execute_functions(&function->as_defined, stack);
+        } break;
+        case FUNCTION_NATIVE: {
+            result = function->as_native(stack);
+        } break;
+        case FUNCTION_LITERAL: {
+            array_append(stack, function->as_literal, &realloc);
+            result = ERROR_OK;
+        } break;
         default: assert(0 && "Encountered unexpected function type");
         };
+
+        if (ERROR_OK != result) {
+            return result;
+        }
     }
+
+    return ERROR_OK;
 }
 
 
@@ -729,7 +790,12 @@ int main(void) {
     FunctionArray program = {0};
     array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &realloc);
 
-    execute_functions(&program, &stack);
+    Error result = execute_functions(&program, &stack);
+    switch (result) {
+    case ERROR_DOMAIN: fprintf(stderr, "DOMAIN ERROR\n"); exit(1);
+    case ERROR_OK:     break;
+    default:           assert(0 && "Encountered unexpected error type");
+    }
 
     (void)printf("Stack dump: ");
     dump_stack(&stack);
