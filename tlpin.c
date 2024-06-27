@@ -631,6 +631,30 @@ void native_ike(ValueArray* stack) {
     --stack->count;
 }
 
+// Index generator.
+void native_nanpa(ValueArray* stack) {
+    // TODO: make proper run time error.
+    assert(stack->count >= 1 && "Stack Underflow");
+
+    Value* a = &stack->elements[stack->count - 1];
+    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
+    float64_t max_index = a->as_number;
+
+    Value index_array = {
+        .type = VALUE_ARRAY,
+        .as_array = {0}
+    };
+    Value index = {0};
+    index.type = VALUE_NUMBER;
+    for (float64_t i = 1; i <= max_index; ++i) {
+        index.as_number = i;
+        // TODO: make preallocate memory.
+        array_append(&index_array.as_array, index, &realloc);
+    }
+
+    stack->elements[stack->count - 1] = index_array;
+}
+
 void execute_functions(const FunctionArray* functions, ValueArray* stack) {
     for (size_t i = 0; i < functions->count; ++i) {
         const Function* function = &functions->elements[i];
@@ -679,26 +703,8 @@ const Function initial_program[] = {
         }
     },
     {
-        .type = FUNCTION_LITERAL,
-        .as_literal = {
-            .type = VALUE_NUMBER,
-            .as_number = 10
-        }
-    },
-    {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_pona
-    },
-    {
-        .type = FUNCTION_LITERAL,
-        .as_literal = {
-            .type = VALUE_NUMBER,
-            .as_number = 20
-        }
-    },
-    {
-        .type = FUNCTION_NATIVE,
-        .as_native = &native_ike
+        .as_native = &native_nanpa
     }
 };
 
