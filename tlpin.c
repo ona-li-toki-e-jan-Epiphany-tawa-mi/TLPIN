@@ -1,5 +1,11 @@
 #include "array.h"
 
+#include <stdint.h>
+#include <assert.h>
+#include <stdlib.h>
+
+typedef double float64_t;
+
 
 
 /* typedef enum { */
@@ -555,6 +561,73 @@
 
 
 
+typedef enum {
+    VALUE_NUMBER,
+    VALUE_CHARACTER,
+    VALUE_ARRAY
+} ValueType;
+
+typedef struct Value Value;
+
+typedef ARRAY_OF(Value) ValueArray;
+
+struct Value {
+    ValueType type;
+    union {
+        float64_t  as_number;
+        uint8_t    as_character;
+        ValueArray as_array;
+    };
+};
+
+
+
+typedef enum {
+    FUNCTION_NATIVE,
+    FUNCTION_DEFINED
+} FunctionType;
+
+typedef struct Function Function;
+
+typedef ARRAY_OF(Function) FunctionArray;
+
+struct Function {
+    FunctionType type;
+    union {
+        void(*as_native)(ValueArray*);
+        FunctionArray as_defined;
+    };
+};
+
+
+
+void native_add(ValueArray* stack) {
+    // TODO: make proper run time error.
+    assert(stack->count >= 2 && "Stack Underflow");
+
+    Value* a = &stack->elements[stack->count - 2];
+    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
+    Value* b = &stack->elements[stack->count - 1];
+    assert(b->type == VALUE_NUMBER && "TODO: handle non-number types");
+
+    a->as_number = a->as_number + b->as_number;
+    --stack->count;
+}
+
+void execute_functions(const FunctionArray* functions, ValueArray* stack) {
+    for (size_t i = 0; i < functions->count; ++i) {
+        const Function* function = &functions->elements[i];
+
+        switch (function->type) {
+        case FUNCTION_DEFINED: execute_functions(&function->as_defined, stack); break;
+        case FUNCTION_NATIVE:  function->as_native(stack);                      break;
+        default: assert(0 && "Encountered unexpected function type");
+        };
+    }
+}
+
+
+
 /* #define SOURCE_FILE     "test.tlpin" */
 /* #define READ_CHUNK_SIZE 1024 */
 
@@ -564,7 +637,6 @@ int main(void) {
     /*     perror("Error: Unable to open file '" SOURCE_FILE "'"); */
     /*     return 1; */
     /* }; */
-
     /* sstring_t contents = sstring_read_file(source, READ_CHUNK_SIZE, &realloc); */
     /* (void)fclose(source); */
 
@@ -574,6 +646,31 @@ int main(void) {
     /* dump_lexemes(stdout, &lexemes, SOURCE_FILE); */
     /* //cparse_program(&lexemes); */
     /* lexeme_array_free(&lexemes, &free); */
+
+    FunctionArray program = {0};
+    ValueArray    stack   = {0};
+
+    Value a = {
+        .type      = VALUE_NUMBER,
+        .as_number = 10
+    };
+    array_append(&stack, a, &realloc);
+    Value b = {
+        .type      = VALUE_NUMBER,
+        .as_number = 20
+    };
+    array_append(&stack, b, &realloc);
+    array_append(&stack, b, &realloc);
+
+    Function func = {
+        .type = FUNCTION_NATIVE,
+        .as_native = &native_add
+    };
+    array_append(&program, func, &realloc);
+    array_append(&program, func, &realloc);
+
+    execute_functions(&program, &stack);
+    (void)printf("Result: %lf\n", stack.elements[stack.count - 1].as_number);
 
     return 0;
 }
