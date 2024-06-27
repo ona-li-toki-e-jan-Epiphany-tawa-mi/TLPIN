@@ -97,21 +97,6 @@ typedef void(*array_free_t)(void*t);
 #define array_byte_size(array) ((array)->capacity * array_element_byte_size((array)))
 
 /**
- * Fetches the element at the given index in the dynamic array.
- * @param array (ARRAY_OF(type)*).
- * @param index (size_t).
- */
-#define array_at(array, index) (array)->elements[(index)]
-
-/**
- * Sets the value of the element at the given index in the dynamic array.
- * @param array (ARRAY_OF(type)*).
- * @param index (size_t).
- * @param value (type).
- */
-#define array_set(array, index, value) ((array)->elements[(index)] = (value))
-
-/**
  * Swaps the contents of the dynamic arrays.
  * @param array1 (ARRAY_OF(type)*).
  * @param array2 (ARRAY_OF(type)*).
@@ -197,7 +182,7 @@ typedef void(*array_free_t)(void*t);
                                                                                \
             array_reallocate((array), (realloc));                              \
         }                                                                      \
-        array_set((array), (array)->count++, (element));                       \
+        (array)->elements[(array)->count++] = (element);                       \
     } while (0)
 
 /**
