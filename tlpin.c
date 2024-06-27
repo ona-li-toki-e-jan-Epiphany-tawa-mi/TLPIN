@@ -650,6 +650,30 @@ void dump_stack(const ValueArray* stack) {
     }
 }
 
+#define ARRAY_SIZE(array) sizeof(array)/sizeof(array[0])
+
+const Value initial_stack[] = {
+    {
+        .type      = VALUE_NUMBER,
+        .as_number = 10
+    },
+    {
+        .type      = VALUE_NUMBER,
+        .as_number = 24.8
+    },
+    {
+        .type      = VALUE_NUMBER,
+        .as_number = 5
+    }
+};
+
+const Function initial_program[] = {
+    {
+        .type = FUNCTION_NATIVE,
+        .as_native = &native_add
+    }
+};
+
 int main(void) {
     /* FILE* source = fopen(SOURCE_FILE, "r"); */
     /* if (NULL == source) { */
@@ -666,27 +690,11 @@ int main(void) {
     /* //cparse_program(&lexemes); */
     /* lexeme_array_free(&lexemes, &free); */
 
-    FunctionArray program = {0};
     ValueArray    stack   = {0};
+    array_append_many(&stack, initial_stack, ARRAY_SIZE(initial_stack), &realloc);
 
-    Value a = {
-        .type      = VALUE_NUMBER,
-        .as_number = 10
-    };
-    array_append(&stack, a, &realloc);
-    Value b = {
-        .type      = VALUE_NUMBER,
-        .as_number = 20
-    };
-    array_append(&stack, b, &realloc);
-    array_append(&stack, b, &realloc);
-
-    Function func = {
-        .type = FUNCTION_NATIVE,
-        .as_native = &native_add
-    };
-    array_append(&program, func, &realloc);
-    //array_append(&program, func, &realloc);
+    FunctionArray program = {0};
+    array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &realloc);
 
     execute_functions(&program, &stack);
 
