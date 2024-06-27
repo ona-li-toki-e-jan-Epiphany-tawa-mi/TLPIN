@@ -70,12 +70,12 @@ typedef void(*array_free_t)(void*t);
  * @param free (array_free_t) - function to free the underlying memory.
  */
 #define array_free(array, free)                 \
-    {                                           \
+    do {                                        \
         (free)((array)->elements);              \
         (array)->elements = NULL;               \
         (array)->count    = 0;                  \
         (array)->capacity = 0;                  \
-    }
+    } while (0)
 
 /**
  * Computes the size, in bytes, of the dynamic array's elements.
@@ -116,7 +116,7 @@ typedef void(*array_free_t)(void*t);
  * @param array2 (ARRAY_OF(type)*).
  */
 #define array_swap(array1, array2)                      \
-    {                                                   \
+    do {                                                \
         void* array1_elements = (array1)->elements;     \
         (array1)->elements    = (array2)->elements;     \
         (array2)->elements    = array1_elements;        \
@@ -128,7 +128,7 @@ typedef void(*array_free_t)(void*t);
         size_t array1_capacity = (array1)->capacity;    \
         (array1)->capacity     = (array2)->capacity;    \
         (array2)->capacity     = array1_capacity;       \
-    }
+    } while (0)
 
 /**
  * Reallocates the memory of the dynamic array if it's capacity has changed.
@@ -137,7 +137,7 @@ typedef void(*array_free_t)(void*t);
  *        memory.
  */
 #define array_reallocate(array, realloc)                                            \
-    {                                                                               \
+    do {                                                                \
         (array)->elements = (realloc)((array)->elements, array_byte_size((array))); \
         if (NULL == (array)->elements) {                                            \
             (void)fputs(                                                            \
@@ -146,7 +146,7 @@ typedef void(*array_free_t)(void*t);
             );                                                                      \
             exit(1);                                                                \
         }                                                                           \
-    }
+    } while (0)
 
 /**
  * Resizes the dynamic array to the given size. If the size specified is smaller
@@ -158,14 +158,14 @@ typedef void(*array_free_t)(void*t);
  *        memory.
  */
 #define array_resize(array, size, realloc)        \
-    {                                             \
+    do {                                          \
         if ((size) != (array)->capacity) {        \
             if ((size) < (array)->count)          \
                 (array)->count = (size);          \
             (array)->capacity = (size);           \
             array_reallocate((array), (realloc)); \
         }                                         \
-    }
+    } while (0)
 
 /**
  * Increases the size of the dynamic array by the given amount.
@@ -175,10 +175,10 @@ typedef void(*array_free_t)(void*t);
  *        memory.
  */
 #define array_expand(array, size, realloc)      \
-    {                                           \
+    do {                                        \
         (array)->capacity += (size);            \
         array_reallocate((array), (realloc));   \
-    }
+    } while (0)
 
 /**
  * Appends an element to the dynamic array.
@@ -188,7 +188,7 @@ typedef void(*array_free_t)(void*t);
  *        memory.
  */
 #define array_append(array, element, realloc)                                  \
-    {                                                                          \
+    do {                                                                       \
         if ((array)->count >= (array)->capacity) {                             \
             (array)->capacity = 0 == (array)->capacity                         \
                               ? ARRAY_INITIAL_CAPACITY                         \
@@ -197,7 +197,7 @@ typedef void(*array_free_t)(void*t);
             array_reallocate((array), (realloc));                              \
         }                                                                      \
         array_set((array), (array)->count++, (element));                       \
-    }
+    } while (0)
 
 /**
  * Appends multiple elements to the dynamic array.
@@ -208,7 +208,7 @@ typedef void(*array_free_t)(void*t);
  *        memory.
  */
 #define array_append_many(array, buffer, element_count, realloc)            \
-    {                                                                       \
+    do {                                                                    \
         if ((element_count) + (array)->count >= (array)->capacity) {        \
             if (0 == (array)->capacity) {                                   \
                 (array)->capacity = ARRAY_INITIAL_CAPACITY;                 \
@@ -225,4 +225,4 @@ typedef void(*array_free_t)(void*t);
              (element_count)*sizeof(*(buffer))                              \
          );                                                                 \
         (array)->count += (element_count);                                  \
-    }
+    } while (0)
