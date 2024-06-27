@@ -631,6 +631,25 @@ void execute_functions(const FunctionArray* functions, ValueArray* stack) {
 /* #define SOURCE_FILE     "test.tlpin" */
 /* #define READ_CHUNK_SIZE 1024 */
 
+void dump_stack(const ValueArray* stack) {
+    for (size_t i = 0; i < stack->count; ++i) {
+        const Value* value = &stack->elements[i];
+
+        switch (value->type) {
+        case VALUE_NUMBER:    (void)printf("%lf ", value->as_number);    break;
+        case VALUE_CHARACTER: (void)printf("%c ",  value->as_character); break;
+
+        case VALUE_ARRAY: {
+            (void)printf("{ ");
+            dump_stack(&value->as_array);
+            (void)printf("} ");
+        } break;
+
+        default: assert(0 && "Encountered unexpected value type");
+        };
+    }
+}
+
 int main(void) {
     /* FILE* source = fopen(SOURCE_FILE, "r"); */
     /* if (NULL == source) { */
@@ -667,10 +686,12 @@ int main(void) {
         .as_native = &native_add
     };
     array_append(&program, func, &realloc);
-    array_append(&program, func, &realloc);
+    //array_append(&program, func, &realloc);
 
     execute_functions(&program, &stack);
-    (void)printf("Result: %lf\n", stack.elements[stack.count - 1].as_number);
+
+    (void)printf("Stack dump: ");
+    dump_stack(&stack);
 
     return 0;
 }
