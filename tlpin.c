@@ -665,6 +665,32 @@ Error native_ike(ValueArray* stack) {
 }
 
 /**
+ * Multiplication - dyadic.
+ *
+ * On number,number - multiply numbers
+ * On character,* or *,character - domain error.
+ * On array,number or number,array - TODO.
+ * On array,array - TODO.
+ */
+Error native_mute(ValueArray* stack) {
+    assert(stack->count >= 2 && "Unexpected stack underflow");
+
+    Value* a = &stack->elements[stack->count - 2];
+    Value* b = &stack->elements[stack->count - 1];
+
+    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type)
+        return ERROR_DOMAIN;
+
+    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
+        a->as_number = a->as_number * b->as_number;
+        --stack->count;
+        return ERROR_OK;
+    }
+
+    assert(0 && "TODO: unhandled types");
+}
+
+/**
  * Index generator - monadic
  *
  * On number - generate array of numbers [ 1, 2, 3, ..., n ]
@@ -719,6 +745,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
             result = function->as_native(stack);
         } break;
         case FUNCTION_LITERAL: {
+            // TODO make do deep copy.
             array_append(stack, function->as_literal, &stdlib_aallocator);
             result = ERROR_OK;
         } break;
@@ -768,8 +795,15 @@ const Function initial_program[] = {
         }
     },
     {
+        .type = FUNCTION_LITERAL,
+        .as_literal = {
+            .type = VALUE_NUMBER,
+            .as_number = 30
+        }
+    },
+    {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_nanpa
+        .as_native = &native_mute
     }
 };
 
