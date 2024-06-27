@@ -24,10 +24,7 @@
  */
 
 /*
- * C IMproved.
- *
- * Misc. header library with boilerplate to remedy some of the qualms I have
- * with the otherwise baller programming language C.
+ * Dead simple dynamic arrays.
  *
  * Preprocessor parameters:
  * - ARRAY_INITIAL_CAPACITY - The initial capacity of dynamic arrays. Has
@@ -36,50 +33,10 @@
  *   on resizing. Has default value.
  */
 
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Better Types START                                                         //
-////////////////////////////////////////////////////////////////////////////////
-
-/*
- * The built-in types in C are utter garbage. "unsigned long long int" is a
- * disgrace. Thank you, stdint, for stuff like uint64_t.
- */
-
-#include <stdint.h>
-#include <inttypes.h>
-
-// Floats are not actually guaranteed to be of the specified size, but the names
-// are better IMO.
-typedef float       float32_t;
-typedef double      float64_t;
-typedef long double float128_t;
-
-// Format specifiers like in inttypes.h.
-#define PRIf32  "f"
-#define PRIf64  "f"
-#define PRIf128 "lf"
-
-////////////////////////////////////////////////////////////////////////////////
-// Better Types END                                                           //
-////////////////////////////////////////////////////////////////////////////////
-
-
-
-////////////////////////////////////////////////////////////////////////////////
-// Dynamic Arrays START                                                       //
-////////////////////////////////////////////////////////////////////////////////
-
-/*
- * Dynamic arrays are a pretty lacking thing in C, whose addition to the
- * standard library would make it a million times better.
- * Luckly, implmenting dynamic arrays yourself is actually pretty easy.
- */
-
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+
+
 
 #ifndef ARRAY_INITIAL_CAPACITY
 #define ARRAY_INITIAL_CAPACITY 10
@@ -88,6 +45,8 @@ typedef long double float128_t;
 #ifndef ARRAY_CAPACITY_MULTIPLIER
 #define ARRAY_CAPACITY_MULTIPLIER 2
 #endif // ARRAY_CAPACITY_MULTIPLIER
+
+
 
 // TODO create separate allocator struct and make more general purpose.
 // typedefs for the memory allocation functions accepted by the arrays.
@@ -267,7 +226,3 @@ typedef void(*array_free_t)(void*t);
          );                                                                 \
         (array)->count += (element_count);                                  \
     }
-
-////////////////////////////////////////////////////////////////////////////////
-// Dynamic Arrays END                                                         //
-////////////////////////////////////////////////////////////////////////////////
