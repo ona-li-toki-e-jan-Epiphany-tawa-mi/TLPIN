@@ -617,13 +617,28 @@ void native_pona(ValueArray* stack) {
     --stack->count;
 }
 
+// Subtracts values.
+void native_ike(ValueArray* stack) {
+    // TODO: make proper run time error.
+    assert(stack->count >= 2 && "Stack Underflow");
+
+    Value* a = &stack->elements[stack->count - 2];
+    assert(a->type == VALUE_NUMBER && "TODO: handle non-number types");
+    Value* b = &stack->elements[stack->count - 1];
+    assert(b->type == VALUE_NUMBER && "TODO: handle non-number types");
+
+    a->as_number = a->as_number - b->as_number;
+    --stack->count;
+}
+
 void execute_functions(const FunctionArray* functions, ValueArray* stack) {
     for (size_t i = 0; i < functions->count; ++i) {
         const Function* function = &functions->elements[i];
 
         switch (function->type) {
-        case FUNCTION_DEFINED: execute_functions(&function->as_defined, stack); break;
-        case FUNCTION_NATIVE:  function->as_native(stack);                      break;
+        case FUNCTION_DEFINED: execute_functions(&function->as_defined, stack);     break;
+        case FUNCTION_NATIVE:  function->as_native(stack);                          break;
+        case FUNCTION_LITERAL: array_append(stack, function->as_literal, &realloc); break;
         default: assert(0 && "Encountered unexpected function type");
         };
     }
