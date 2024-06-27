@@ -33,9 +33,9 @@
  *   on resizing. Has default value.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+#include <stdio.h>  // For fputs.
+#include <stdlib.h> // For exit.
+#include <string.h> // For memcpy.
 
 
 
@@ -49,10 +49,16 @@
 
 
 
-// TODO create separate allocator struct and make more general purpose.
-// typedefs for the memory allocation functions accepted by the arrays.
-typedef void*(*array_realloc_t)(void*, size_t);
-typedef void(*array_free_t)(void*t);
+/**
+ * Allocater type to pass to array functions to perform the memory allocations.
+ * In most cases, you'll just want to use realloc and free from stdlib.h.
+ */
+typedef struct {
+    void*(*realloc)(void*, size_t);
+    void(*free)(void*);
+} array_allocator_t;
+
+
 
 /**
  * Creates an array type that stores the given type. Intantiations of this type
@@ -67,12 +73,12 @@ typedef void(*array_free_t)(void*t);
 
 /**
  * Frees the memory allocated by the dynamic array and resets it.
- * @param array (ARRAY_OF(type)*).
- * @param free (array_free_t) - function to free the underlying memory.
+ * @param array     (ARRAY_OF(type)*).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_free(array, free)                 \
+#define array_free(array, allocator)            \
     do {                                        \
-        (free)((array)->elements);              \
+        (allocator)->free((array)->elements);   \
         (array)->elements = NULL;               \
         (array)->count    = 0;                  \
         (array)->capacity = 0;                  \
@@ -118,69 +124,68 @@ typedef void(*array_free_t)(void*t);
 
 /**
  * Reallocates the memory of the dynamic array if it's capacity has changed.
- * @param array (ARRAY_OF(type)*).
- * @param realloc (array_realloc_t) - function to reallocate the underlying
- *        memory.
+ * @param array     (ARRAY_OF(type)*).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_reallocate(array, realloc)                                            \
-    do {                                                                \
-        (array)->elements = (realloc)((array)->elements, array_byte_size((array))); \
-        if (NULL == (array)->elements) {                                            \
-            (void)fputs(                                                            \
-                 "Error: Unable to reallocate dynamic array; buy more RAM lol",     \
-                 stderr                                                             \
-            );                                                                      \
-            exit(1);                                                                \
-        }                                                                           \
+#define array_reallocate(array, allocator)                                      \
+    do {                                                                        \
+        (array)->elements = (allocator)->realloc(                               \
+            (array)->elements,                                                  \
+            array_byte_size((array))                                            \
+        );                                                                      \
+        if (NULL == (array)->elements) {                                        \
+            (void)fputs(                                                        \
+                 "Error: Unable to reallocate dynamic array; buy more RAM lol", \
+                 stderr                                                         \
+            );                                                                  \
+            exit(1);                                                            \
+        }                                                                       \
     } while (0)
 
 /**
  * Resizes the dynamic array to the given size. If the size specified is smaller
  * than the array's current size, the array will be truncated.
  * Has no effect if the current and specified size are the same.
- * @param array (ARRAY_OF(type)*).
- * @param size  (size_t).
- * @param realloc (array_realloc_t) - function to reallocate the underlying
- *        memory.
+ * @param array     (ARRAY_OF(type)*).
+ * @param size      (size_t).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_resize(array, size, realloc)        \
-    do {                                          \
-        if ((size) != (array)->capacity) {        \
-            if ((size) < (array)->count)          \
-                (array)->count = (size);          \
-            (array)->capacity = (size);           \
-            array_reallocate((array), (realloc)); \
-        }                                         \
+#define array_resize(array, size, allocator)        \
+    do {                                            \
+        if ((size) != (array)->capacity) {          \
+            if ((size) < (array)->count)            \
+                (array)->count = (size);            \
+            (array)->capacity = (size);             \
+            array_reallocate((array), (allocator)); \
+        }                                           \
     } while (0)
 
 /**
  * Increases the size of the dynamic array by the given amount.
- * @param array (ARRAY_OF(type)*).
- * @param size  (size_t).
- * @param realloc (array_realloc_t) - function to reallocate the underlying
- *        memory.
+ * @param array     (ARRAY_OF(type)*).
+ * @param size      (size_t).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_expand(array, size, realloc)      \
-    do {                                        \
-        (array)->capacity += (size);            \
-        array_reallocate((array), (realloc));   \
+#define array_expand(array, size, allocator)      \
+    do {                                          \
+        (array)->capacity += (size);              \
+        array_reallocate((array), (allocator));   \
     } while (0)
 
 /**
  * Appends an element to the dynamic array.
- * @param array   (ARRAY_OF(type)*).
- * @param element (type).
- * @param realloc (array_realloc_t) - function to reallocate the underlying
- *        memory.
+ * @param array     (ARRAY_OF(type)*).
+ * @param element   (type).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_append(array, element, realloc)                                  \
+#define array_append(array, element, allocator)                                \
     do {                                                                       \
         if ((array)->count >= (array)->capacity) {                             \
             (array)->capacity = 0 == (array)->capacity                         \
                               ? ARRAY_INITIAL_CAPACITY                         \
                               : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity; \
                                                                                \
-            array_reallocate((array), (realloc));                              \
+            array_reallocate((array), (allocator));                            \
         }                                                                      \
         (array)->elements[(array)->count++] = (element);                       \
     } while (0)
@@ -190,10 +195,9 @@ typedef void(*array_free_t)(void*t);
  * @param array         (ARRAY_OF(type)*).
  * @param buffer        (type*).
  * @param element_count (size_t).
- * @param realloc (array_realloc_t) - function to reallocate the underlying
- *        memory.
+ * @param allocator     (array_allocator_t*) - memory allocator to use.
  */
-#define array_append_many(array, buffer, element_count, realloc)            \
+#define array_append_many(array, buffer, element_count, allocator)          \
     do {                                                                    \
         if ((element_count) + (array)->count >= (array)->capacity) {        \
             if (0 == (array)->capacity) {                                   \
@@ -202,7 +206,7 @@ typedef void(*array_free_t)(void*t);
             while ((element_count) + (array)->count >= (array)->capacity) { \
                 (array)->capacity *= ARRAY_CAPACITY_MULTIPLIER;             \
             }                                                               \
-            array_reallocate((array), (realloc));                           \
+            array_reallocate((array), (allocator));                         \
         }                                                                   \
                                                                             \
         (void)memcpy(                                                       \

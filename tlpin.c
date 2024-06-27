@@ -1,8 +1,12 @@
-#include "array.h"
-
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+
+#include "array.h"
+const array_allocator_t stdlib_aallocator = {
+    .realloc = &realloc,
+    .free    = &free
+};
 
 typedef double float64_t;
 
@@ -686,7 +690,7 @@ Error native_nanpa(ValueArray* stack) {
         for (float64_t i = 1; i <= max_index; ++i) {
             index.as_number = i;
             // TODO: make preallocate memory.
-            array_append(&index_array.as_array, index, &realloc);
+            array_append(&index_array.as_array, index, &stdlib_aallocator);
         }
 
         stack->elements[stack->count - 1] = index_array;
@@ -715,7 +719,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
             result = function->as_native(stack);
         } break;
         case FUNCTION_LITERAL: {
-            array_append(stack, function->as_literal, &realloc);
+            array_append(stack, function->as_literal, &stdlib_aallocator);
             result = ERROR_OK;
         } break;
         default: assert(0 && "Encountered unexpected function type");
@@ -788,7 +792,7 @@ int main(void) {
     ValueArray stack = {0};
 
     FunctionArray program = {0};
-    array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &realloc);
+    array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &stdlib_aallocator);
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
