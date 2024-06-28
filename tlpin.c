@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdbool.h>
 
 #include "array.h"
 const array_allocator_t stdlib_aallocator = {
@@ -588,7 +589,8 @@ struct Value {
 
 typedef enum {
     ERROR_OK,
-    ERROR_DOMAIN
+    ERROR_DOMAIN,
+    ERROR_SHAPE
 } Error;
 
 typedef enum {
@@ -613,13 +615,48 @@ struct Function {
 
 
 /**
+ * Returns true if the arrays are of the same shape.
+ * Being of the same "shape" means that the arrays are of the same length, and
+ * any nested arrays are located at the same index in both arrays and are also
+ * of the same length, so on so forth, recursively, for all nested arrays.
+ */
+bool compare_array_shapes(const ValueArray* array1, const ValueArray* array2) {
+    if (array1->count != array2->count) return false;
+
+    for (size_t i = 0; i < array1->count; ++i) {
+        const Value* array1_element = &array1->elements[i];
+        const Value* array2_element = &array2->elements[i];
+
+        if (VALUE_ARRAY != array1_element->type && VALUE_ARRAY != array2_element->type) {
+            continue;
+        }
+
+        if (VALUE_ARRAY != array1_element->type || VALUE_ARRAY != array2_element->type) {
+            return false;
+        }
+
+        if (!compare_array_shapes(array1, array2)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+
+
+// TODO Come up with proper stack pop method that frees arrays when popped.
+
+/**
  * Addition - dyadic.
  *
  * On number,number - add numbers
  * On character,* or *,character - domain error.
  * On array,number or number,array - Recursively add number to the elements of
  * the array.
- * On array,array - TODO.
+ * On array,array - if arrays of same shape, recursively adds individual
+ * elements together, else
+ * shape error.
  */
 Error native_pona(ValueArray* stack) {
     assert(stack->count >= 2 && "Unexpected stack underflow");
@@ -670,7 +707,20 @@ Error native_pona(ValueArray* stack) {
         } break;
         case VALUE_CHARACTER: return ERROR_DOMAIN;
         case VALUE_ARRAY: {
-            assert(0 && "TODO");
+            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
+                return ERROR_SHAPE;
+            }
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* a_element = &a->as_array.elements[i];
+                Value* b_element = &b->as_array.elements[i];
+                array_append(stack, *a_element, &stdlib_aallocator);
+                array_append(stack, *b_element, &stdlib_aallocator);
+                Error result = native_pona(stack);
+                if (ERROR_OK != result) return result;
+                *a_element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
         } break;
         default: assert(0 && "Encountered unexpected value type");
         }
@@ -690,7 +740,8 @@ Error native_pona(ValueArray* stack) {
  * On array,number - recursively subtract number from elements of array.
  * On number,array - recursively set elements of array to number subtract
  * element.
- * On array,array - TODO.
+ * On array,array - if arrays of same shape, recursively subtracts individual
+ * elements from eachother, else shape error.
  */
 Error native_ike(ValueArray* stack) {
     assert(stack->count >= 2 && "Unexpected stack underflow");
@@ -741,7 +792,20 @@ Error native_ike(ValueArray* stack) {
         } break;
         case VALUE_CHARACTER: return ERROR_DOMAIN;
         case VALUE_ARRAY: {
-            assert(0 && "TODO");
+            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
+                return ERROR_SHAPE;
+            }
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* a_element = &a->as_array.elements[i];
+                Value* b_element = &b->as_array.elements[i];
+                array_append(stack, *a_element, &stdlib_aallocator);
+                array_append(stack, *b_element, &stdlib_aallocator);
+                Error result = native_ike(stack);
+                if (ERROR_OK != result) return result;
+                *a_element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
         } break;
         default: assert(0 && "Encountered unexpected value type");
         }
@@ -760,7 +824,8 @@ Error native_ike(ValueArray* stack) {
  * On character,* or *,character - domain error.
  * On array,number or number,array - Recursively multiply number to the elements
  * of the array.
- * On array,array - TODO.
+ * On array,array - if arrays of same shape, recursively multiplies individual
+ * elements together, else shape error.
  */
 Error native_mute(ValueArray* stack) {
     assert(stack->count >= 2 && "Unexpected stack underflow");
@@ -811,7 +876,20 @@ Error native_mute(ValueArray* stack) {
         } break;
         case VALUE_CHARACTER: return ERROR_DOMAIN;
         case VALUE_ARRAY: {
-            assert(0 && "TODO");
+            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
+                return ERROR_SHAPE;
+            }
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* a_element = &a->as_array.elements[i];
+                Value* b_element = &b->as_array.elements[i];
+                array_append(stack, *a_element, &stdlib_aallocator);
+                array_append(stack, *b_element, &stdlib_aallocator);
+                Error result = native_mute(stack);
+                if (ERROR_OK != result) return result;
+                *a_element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
         } break;
         default: assert(0 && "Encountered unexpected value type");
         }
@@ -831,7 +909,8 @@ Error native_mute(ValueArray* stack) {
  * On array,number - recursively divide elements of array by number.
  * On number,array - recursively set elements of array to number divided by
  * element.
- * On array,array - TODO.
+ * On array,array - if arrays of same shape, recursively divides individual
+ * elements by eachother, else shape error.
  */
 Error native_kipisi(ValueArray* stack) {
     assert(stack->count >= 2 && "Unexpected stack underflow");
@@ -882,7 +961,20 @@ Error native_kipisi(ValueArray* stack) {
         } break;
         case VALUE_CHARACTER: return ERROR_DOMAIN;
         case VALUE_ARRAY: {
-            assert(0 && "TODO");
+            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
+                return ERROR_SHAPE;
+            }
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* a_element = &a->as_array.elements[i];
+                Value* b_element = &b->as_array.elements[i];
+                array_append(stack, *a_element, &stdlib_aallocator);
+                array_append(stack, *b_element, &stdlib_aallocator);
+                Error result = native_kipisi(stack);
+                if (ERROR_OK != result) return result;
+                *a_element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
         } break;
         default: assert(0 && "Encountered unexpected value type");
         }
@@ -995,8 +1087,12 @@ const Function initial_program[] = {
         .type = FUNCTION_LITERAL,
         .as_literal = {
             .type = VALUE_NUMBER,
-            .as_number = 30
+            .as_number = 10
         }
+    },
+    {
+        .type = FUNCTION_NATIVE,
+        .as_native = &native_nanpa
     },
     {
         .type = FUNCTION_LITERAL,
@@ -1039,6 +1135,7 @@ int main(void) {
     Error result = execute_functions(&program, &stack);
     switch (result) {
     case ERROR_DOMAIN: fprintf(stderr, "DOMAIN ERROR\n"); exit(1);
+    case ERROR_SHAPE:  fprintf(stderr, "SHAPE ERROR\n");  exit(1);
     case ERROR_OK:     break;
     default:           assert(0 && "Encountered unexpected error type");
     }
