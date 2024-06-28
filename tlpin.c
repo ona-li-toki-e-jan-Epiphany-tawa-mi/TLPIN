@@ -638,21 +638,14 @@ Error native_pona(ValueArray* stack) {
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-
-                switch (element->type) {
-                case VALUE_NUMBER:    element->as_number += a->as_number; break;
-                case VALUE_CHARACTER: return ERROR_DOMAIN;
-                case VALUE_ARRAY: {
-                    array_append(stack, *a,       &stdlib_aallocator);
-                    array_append(stack, *element, &stdlib_aallocator);
-                    Error result = native_pona(stack);
-                    if (ERROR_OK != result) return result;
-                } break;
-                default: assert(0 && "Encountered unexpected value type");
-                }
+                array_append(stack, *a,       &stdlib_aallocator);
+                array_append(stack, *element, &stdlib_aallocator);
+                Error result = native_pona(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
             }
-            a->type     = VALUE_ARRAY;
-            a->as_array = b->as_array;
+            *a = *b;
             --stack->count;
         } break;
         default: assert(0 && "Encountered unexpected value type");
@@ -666,18 +659,12 @@ Error native_pona(ValueArray* stack) {
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-
-                switch (element->type) {
-                case VALUE_NUMBER:    element->as_number += b->as_number; break;
-                case VALUE_CHARACTER: return ERROR_DOMAIN;
-                case VALUE_ARRAY: {
-                    array_append(stack, *element, &stdlib_aallocator);
-                    array_append(stack, *b,       &stdlib_aallocator);
-                    Error result = native_pona(stack);
-                    if (ERROR_OK != result) return result;
-                } break;
-                default: assert(0 && "Encountered unexpected value type");
-                }
+                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, *b,       &stdlib_aallocator);
+                Error result = native_pona(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
             }
             --stack->count;
         } break;
@@ -700,7 +687,9 @@ Error native_pona(ValueArray* stack) {
  *
  * On number,number - subtract numbers
  * On character,* or *,character - domain error.
- * On array,number or number,array - TODO.
+ * On array,number - recursively subtract number from elements of array.
+ * On number,array - recursively set elements of array to number subtract
+ * element.
  * On array,array - TODO.
  */
 Error native_ike(ValueArray* stack) {
@@ -709,17 +698,59 @@ Error native_ike(ValueArray* stack) {
     Value* a = &stack->elements[stack->count - 2];
     Value* b = &stack->elements[stack->count - 1];
 
-    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
-        a->as_number = a->as_number - b->as_number;
-        --stack->count;
-        return ERROR_OK;
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            a->as_number = a->as_number - b->as_number;
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            for (size_t i = 0; i < b->as_array.count; ++i) {
+                Value* element = &b->as_array.elements[i];
+                array_append(stack, *a,       &stdlib_aallocator);
+                array_append(stack, *element, &stdlib_aallocator);
+                Error result = native_ike(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            *a = *b;
+            --stack->count;
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    case VALUE_CHARACTER: return ERROR_DOMAIN;
+
+    case VALUE_ARRAY: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* element = &a->as_array.elements[i];
+                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, *b,       &stdlib_aallocator);
+                Error result = native_ike(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            assert(0 && "TODO");
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    default: assert(0 && "Encountered unexpected value type");
     }
 
-    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type) {
-        return ERROR_DOMAIN;
-    }
-
-    assert(0 && "TODO: unhandled types");
+    return ERROR_OK;
 }
 
 /**
@@ -727,7 +758,8 @@ Error native_ike(ValueArray* stack) {
  *
  * On number,number - multiply numbers
  * On character,* or *,character - domain error.
- * On array,number or number,array - TODO.
+ * On array,number or number,array - Recursively multiply number to the elements
+ * of the array.
  * On array,array - TODO.
  */
 Error native_mute(ValueArray* stack) {
@@ -736,17 +768,59 @@ Error native_mute(ValueArray* stack) {
     Value* a = &stack->elements[stack->count - 2];
     Value* b = &stack->elements[stack->count - 1];
 
-    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
-        a->as_number = a->as_number * b->as_number;
-        --stack->count;
-        return ERROR_OK;
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            a->as_number = a->as_number * b->as_number;
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            for (size_t i = 0; i < b->as_array.count; ++i) {
+                Value* element = &b->as_array.elements[i];
+                array_append(stack, *a,       &stdlib_aallocator);
+                array_append(stack, *element, &stdlib_aallocator);
+                Error result = native_mute(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            *a = *b;
+            --stack->count;
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    case VALUE_CHARACTER: return ERROR_DOMAIN;
+
+    case VALUE_ARRAY: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* element = &a->as_array.elements[i];
+                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, *b,       &stdlib_aallocator);
+                Error result = native_mute(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            assert(0 && "TODO");
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    default: assert(0 && "Encountered unexpected value type");
     }
 
-    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type) {
-        return ERROR_DOMAIN;
-    }
-
-    assert(0 && "TODO: unhandled types");
+    return ERROR_OK;
 }
 
 /**
@@ -754,7 +828,9 @@ Error native_mute(ValueArray* stack) {
  *
  * On number,number - divide numbers
  * On character,* or *,character - domain error.
- * On array,number or number,array - TODO.
+ * On array,number - recursively divide elements of array by number.
+ * On number,array - recursively set elements of array to number divided by
+ * element.
  * On array,array - TODO.
  */
 Error native_kipisi(ValueArray* stack) {
@@ -763,17 +839,59 @@ Error native_kipisi(ValueArray* stack) {
     Value* a = &stack->elements[stack->count - 2];
     Value* b = &stack->elements[stack->count - 1];
 
-    if (VALUE_NUMBER == a->type || VALUE_NUMBER == b->type) {
-        a->as_number = a->as_number / b->as_number;
-        --stack->count;
-        return ERROR_OK;
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            a->as_number = a->as_number / b->as_number;
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            for (size_t i = 0; i < b->as_array.count; ++i) {
+                Value* element = &b->as_array.elements[i];
+                array_append(stack, *a,       &stdlib_aallocator);
+                array_append(stack, *element, &stdlib_aallocator);
+                Error result = native_kipisi(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            *a = *b;
+            --stack->count;
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    case VALUE_CHARACTER: return ERROR_DOMAIN;
+
+    case VALUE_ARRAY: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* element = &a->as_array.elements[i];
+                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, *b,       &stdlib_aallocator);
+                Error result = native_kipisi(stack);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            assert(0 && "TODO");
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    default: assert(0 && "Encountered unexpected value type");
     }
 
-    if (VALUE_CHARACTER == a->type || VALUE_CHARACTER == b->type) {
-        return ERROR_DOMAIN;
-    }
-
-    assert(0 && "TODO: unhandled types");
+    return ERROR_OK;
 }
 
 /**
@@ -893,7 +1011,7 @@ const Function initial_program[] = {
     },
     {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_pona
+        .as_native = &native_kipisi
     }
 };
 
