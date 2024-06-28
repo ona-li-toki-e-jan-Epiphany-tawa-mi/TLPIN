@@ -646,7 +646,94 @@ bool compare_array_shapes(const ValueArray* array1, const ValueArray* array2) {
 
 
 // TODO Come up with proper stack pop method that frees arrays when popped.
+/**
+ * Performs a dyadic native function that works with numbers.
+ *
+ * On number,number - performs operation on numbers.
+ * On character,* or *,character - domain error.
+ * On array,number - recursively perform operation with argument 1 as the
+ * elements of array and argument 2 as number.
+ * On array,number - recursively perform operation with argument 1 as number and
+ * argument 2 as the elements of array.
+ * On array,array - if arrays of same shape, recursively perform operation with
+ * the elements of array 1 as argument 1 and the elements of array 2 as argument
+ * 2, else shape error.
+ */
+Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,float64_t)) {
+    assert(stack->count >= 2 && "Unexpected stack underflow");
 
+    Value* a = &stack->elements[stack->count - 2];
+    Value* b = &stack->elements[stack->count - 1];
+
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            a->as_number = operation(a->as_number, b->as_number);
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            for (size_t i = 0; i < b->as_array.count; ++i) {
+                Value* element = &b->as_array.elements[i];
+                array_append(stack, &stdlib_aallocator, *a);
+                array_append(stack, &stdlib_aallocator, *element);
+                Error result = native_numeric_dyadic(stack, operation);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            *a = *b;
+            --stack->count;
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    case VALUE_CHARACTER: return ERROR_DOMAIN;
+
+    case VALUE_ARRAY: {
+        switch (b->type) {
+        case VALUE_NUMBER: {
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* element = &a->as_array.elements[i];
+                array_append(stack, &stdlib_aallocator, *element);
+                array_append(stack, &stdlib_aallocator, *b);
+                Error result = native_numeric_dyadic(stack, operation);
+                if (ERROR_OK != result) return result;
+                *element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
+        } break;
+        case VALUE_CHARACTER: return ERROR_DOMAIN;
+        case VALUE_ARRAY: {
+            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
+                return ERROR_SHAPE;
+            }
+            for (size_t i = 0; i < a->as_array.count; ++i) {
+                Value* a_element = &a->as_array.elements[i];
+                Value* b_element = &b->as_array.elements[i];
+                array_append(stack, &stdlib_aallocator, *a_element);
+                array_append(stack, &stdlib_aallocator, *b_element);
+                Error result = native_numeric_dyadic(stack, operation);
+                if (ERROR_OK != result) return result;
+                *a_element = stack->elements[stack->count - 1];
+                --stack->count;
+            }
+            --stack->count;
+        } break;
+        default: assert(0 && "Encountered unexpected value type");
+        }
+    } break;
+
+    default: assert(0 && "Encountered unexpected value type");
+    }
+
+    return ERROR_OK;
+}
+
+float64_t native_pona_operation(float64_t a, float64_t b) { return a + b; }
 /**
  * Addition - dyadic.
  *
@@ -659,79 +746,10 @@ bool compare_array_shapes(const ValueArray* array1, const ValueArray* array2) {
  * shape error.
  */
 Error native_pona(ValueArray* stack) {
-    assert(stack->count >= 2 && "Unexpected stack underflow");
-
-    Value* a = &stack->elements[stack->count - 2];
-    Value* b = &stack->elements[stack->count - 1];
-
-    switch (a->type) {
-    case VALUE_NUMBER: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            a->as_number = a->as_number + b->as_number;
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            for (size_t i = 0; i < b->as_array.count; ++i) {
-                Value* element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a);
-                array_append(stack, &stdlib_aallocator, *element);
-                Error result = native_pona(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            *a = *b;
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    case VALUE_CHARACTER: return ERROR_DOMAIN;
-
-    case VALUE_ARRAY: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* element = &a->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *element);
-                array_append(stack, &stdlib_aallocator, *b);
-                Error result = native_pona(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
-                return ERROR_SHAPE;
-            }
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* a_element = &a->as_array.elements[i];
-                Value* b_element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a_element);
-                array_append(stack, &stdlib_aallocator, *b_element);
-                Error result = native_pona(stack);
-                if (ERROR_OK != result) return result;
-                *a_element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    default: assert(0 && "Encountered unexpected value type");
-    }
-
-    return ERROR_OK;
+    return native_numeric_dyadic(stack, &native_pona_operation);
 }
 
+float64_t native_ike_operation(float64_t a, float64_t b) { return a - b; }
 /**
  * Subtraction - dyadic.
  *
@@ -744,79 +762,10 @@ Error native_pona(ValueArray* stack) {
  * elements from eachother, else shape error.
  */
 Error native_ike(ValueArray* stack) {
-    assert(stack->count >= 2 && "Unexpected stack underflow");
-
-    Value* a = &stack->elements[stack->count - 2];
-    Value* b = &stack->elements[stack->count - 1];
-
-    switch (a->type) {
-    case VALUE_NUMBER: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            a->as_number = a->as_number - b->as_number;
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            for (size_t i = 0; i < b->as_array.count; ++i) {
-                Value* element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a);
-                array_append(stack, &stdlib_aallocator, *element);
-                Error result = native_ike(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            *a = *b;
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    case VALUE_CHARACTER: return ERROR_DOMAIN;
-
-    case VALUE_ARRAY: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* element = &a->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *element);
-                array_append(stack, &stdlib_aallocator, *b);
-                Error result = native_ike(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
-                return ERROR_SHAPE;
-            }
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* a_element = &a->as_array.elements[i];
-                Value* b_element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a_element);
-                array_append(stack, &stdlib_aallocator, *b_element);
-                Error result = native_ike(stack);
-                if (ERROR_OK != result) return result;
-                *a_element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    default: assert(0 && "Encountered unexpected value type");
-    }
-
-    return ERROR_OK;
+    return native_numeric_dyadic(stack, &native_ike_operation);
 }
 
+float64_t native_mute_operation(float64_t a, float64_t b) { return a * b; }
 /**
  * Multiplication - dyadic.
  *
@@ -828,79 +777,10 @@ Error native_ike(ValueArray* stack) {
  * elements together, else shape error.
  */
 Error native_mute(ValueArray* stack) {
-    assert(stack->count >= 2 && "Unexpected stack underflow");
-
-    Value* a = &stack->elements[stack->count - 2];
-    Value* b = &stack->elements[stack->count - 1];
-
-    switch (a->type) {
-    case VALUE_NUMBER: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            a->as_number = a->as_number * b->as_number;
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            for (size_t i = 0; i < b->as_array.count; ++i) {
-                Value* element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a);
-                array_append(stack, &stdlib_aallocator, *element);
-                Error result = native_mute(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            *a = *b;
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    case VALUE_CHARACTER: return ERROR_DOMAIN;
-
-    case VALUE_ARRAY: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* element = &a->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *element);
-                array_append(stack, &stdlib_aallocator, *b);
-                Error result = native_mute(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
-                return ERROR_SHAPE;
-            }
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* a_element = &a->as_array.elements[i];
-                Value* b_element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a_element);
-                array_append(stack, &stdlib_aallocator, *b_element);
-                Error result = native_mute(stack);
-                if (ERROR_OK != result) return result;
-                *a_element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    default: assert(0 && "Encountered unexpected value type");
-    }
-
-    return ERROR_OK;
+    return native_numeric_dyadic(stack, &native_mute_operation);
 }
 
+float64_t native_kipisi_operation(float64_t a, float64_t b) { return a / b; }
 /**
  * Divide - dyadic.
  *
@@ -913,77 +793,7 @@ Error native_mute(ValueArray* stack) {
  * elements by eachother, else shape error.
  */
 Error native_kipisi(ValueArray* stack) {
-    assert(stack->count >= 2 && "Unexpected stack underflow");
-
-    Value* a = &stack->elements[stack->count - 2];
-    Value* b = &stack->elements[stack->count - 1];
-
-    switch (a->type) {
-    case VALUE_NUMBER: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            a->as_number = a->as_number / b->as_number;
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            for (size_t i = 0; i < b->as_array.count; ++i) {
-                Value* element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a);
-                array_append(stack, &stdlib_aallocator, *element);
-                Error result = native_kipisi(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            *a = *b;
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    case VALUE_CHARACTER: return ERROR_DOMAIN;
-
-    case VALUE_ARRAY: {
-        switch (b->type) {
-        case VALUE_NUMBER: {
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* element = &a->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *element);
-                array_append(stack, &stdlib_aallocator, *b);
-                Error result = native_kipisi(stack);
-                if (ERROR_OK != result) return result;
-                *element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        case VALUE_CHARACTER: return ERROR_DOMAIN;
-        case VALUE_ARRAY: {
-            if (!compare_array_shapes(&a->as_array, &b->as_array)) {
-                return ERROR_SHAPE;
-            }
-            for (size_t i = 0; i < a->as_array.count; ++i) {
-                Value* a_element = &a->as_array.elements[i];
-                Value* b_element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a_element);
-                array_append(stack, &stdlib_aallocator, *b_element);
-                Error result = native_kipisi(stack);
-                if (ERROR_OK != result) return result;
-                *a_element = stack->elements[stack->count - 1];
-                --stack->count;
-            }
-            --stack->count;
-        } break;
-        default: assert(0 && "Encountered unexpected value type");
-        }
-    } break;
-
-    default: assert(0 && "Encountered unexpected value type");
-    }
-
-    return ERROR_OK;
+    return native_numeric_dyadic(stack, &native_kipisi_operation);
 }
 
 /**
@@ -1107,7 +917,7 @@ const Function initial_program[] = {
     },
     {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_kipisi
+        .as_native = &native_pona
     }
 };
 
