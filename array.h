@@ -147,10 +147,10 @@ typedef struct {
  * than the array's current size, the array will be truncated.
  * Has no effect if the current and specified size are the same.
  * @param array     (ARRAY_OF(type)*).
- * @param size      (size_t).
  * @param allocator (array_allocator_t*) - memory allocator to use.
+ * @param size      (size_t).
  */
-#define array_resize(array, size, allocator)        \
+#define array_resize(array, allocator, size)        \
     do {                                            \
         if ((size) != (array)->capacity) {          \
             if ((size) < (array)->count)            \
@@ -163,10 +163,10 @@ typedef struct {
 /**
  * Increases the size of the dynamic array by the given amount.
  * @param array     (ARRAY_OF(type)*).
- * @param size      (size_t).
  * @param allocator (array_allocator_t*) - memory allocator to use.
+ * @param size      (size_t).
  */
-#define array_expand(array, size, allocator)      \
+#define array_expand(array, allocator, size)      \
     do {                                          \
         (array)->capacity += (size);              \
         array_reallocate((array), (allocator));   \
@@ -175,10 +175,10 @@ typedef struct {
 /**
  * Appends an element to the dynamic array.
  * @param array     (ARRAY_OF(type)*).
- * @param element   (type).
  * @param allocator (array_allocator_t*) - memory allocator to use.
+ * @param element   (type).
  */
-#define array_append(array, element, allocator)                                \
+#define array_append(array, allocator, element)                                \
     do {                                                                       \
         if ((array)->count >= (array)->capacity) {                             \
             (array)->capacity = 0 == (array)->capacity                         \
@@ -193,11 +193,11 @@ typedef struct {
 /**
  * Appends multiple elements to the dynamic array.
  * @param array         (ARRAY_OF(type)*).
+ * @param allocator     (array_allocator_t*) - memory allocator to use.
  * @param buffer        (type*).
  * @param element_count (size_t).
- * @param allocator     (array_allocator_t*) - memory allocator to use.
  */
-#define array_append_many(array, buffer, element_count, allocator)          \
+#define array_append_many(array, allocator, buffer, element_count)          \
     do {                                                                    \
         if ((element_count) + (array)->count >= (array)->capacity) {        \
             if (0 == (array)->capacity) {                                   \

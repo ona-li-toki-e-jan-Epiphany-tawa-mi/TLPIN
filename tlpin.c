@@ -675,8 +675,8 @@ Error native_pona(ValueArray* stack) {
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                array_append(stack, *a,       &stdlib_aallocator);
-                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a);
+                array_append(stack, &stdlib_aallocator, *element);
                 Error result = native_pona(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -696,8 +696,8 @@ Error native_pona(ValueArray* stack) {
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                array_append(stack, *element, &stdlib_aallocator);
-                array_append(stack, *b,       &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *element);
+                array_append(stack, &stdlib_aallocator, *b);
                 Error result = native_pona(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -713,8 +713,8 @@ Error native_pona(ValueArray* stack) {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                array_append(stack, *a_element, &stdlib_aallocator);
-                array_append(stack, *b_element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a_element);
+                array_append(stack, &stdlib_aallocator, *b_element);
                 Error result = native_pona(stack);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -760,8 +760,8 @@ Error native_ike(ValueArray* stack) {
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                array_append(stack, *a,       &stdlib_aallocator);
-                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a);
+                array_append(stack, &stdlib_aallocator, *element);
                 Error result = native_ike(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -781,8 +781,8 @@ Error native_ike(ValueArray* stack) {
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                array_append(stack, *element, &stdlib_aallocator);
-                array_append(stack, *b,       &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *element);
+                array_append(stack, &stdlib_aallocator, *b);
                 Error result = native_ike(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -798,8 +798,8 @@ Error native_ike(ValueArray* stack) {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                array_append(stack, *a_element, &stdlib_aallocator);
-                array_append(stack, *b_element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a_element);
+                array_append(stack, &stdlib_aallocator, *b_element);
                 Error result = native_ike(stack);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -844,8 +844,8 @@ Error native_mute(ValueArray* stack) {
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                array_append(stack, *a,       &stdlib_aallocator);
-                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a);
+                array_append(stack, &stdlib_aallocator, *element);
                 Error result = native_mute(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -865,8 +865,8 @@ Error native_mute(ValueArray* stack) {
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                array_append(stack, *element, &stdlib_aallocator);
-                array_append(stack, *b,       &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *element);
+                array_append(stack, &stdlib_aallocator, *b);
                 Error result = native_mute(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -882,8 +882,8 @@ Error native_mute(ValueArray* stack) {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                array_append(stack, *a_element, &stdlib_aallocator);
-                array_append(stack, *b_element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a_element);
+                array_append(stack, &stdlib_aallocator, *b_element);
                 Error result = native_mute(stack);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -929,8 +929,8 @@ Error native_kipisi(ValueArray* stack) {
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                array_append(stack, *a,       &stdlib_aallocator);
-                array_append(stack, *element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a);
+                array_append(stack, &stdlib_aallocator, *element);
                 Error result = native_kipisi(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -950,8 +950,8 @@ Error native_kipisi(ValueArray* stack) {
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                array_append(stack, *element, &stdlib_aallocator);
-                array_append(stack, *b,       &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *element);
+                array_append(stack, &stdlib_aallocator, *b);
                 Error result = native_kipisi(stack);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -967,8 +967,8 @@ Error native_kipisi(ValueArray* stack) {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                array_append(stack, *a_element, &stdlib_aallocator);
-                array_append(stack, *b_element, &stdlib_aallocator);
+                array_append(stack, &stdlib_aallocator, *a_element);
+                array_append(stack, &stdlib_aallocator, *b_element);
                 Error result = native_kipisi(stack);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -1012,7 +1012,7 @@ Error native_nanpa(ValueArray* stack) {
         for (float64_t i = 1; i <= max_index; ++i) {
             index.as_number = i;
             // TODO: make preallocate memory.
-            array_append(&index_array.as_array, index, &stdlib_aallocator);
+            array_append(&index_array.as_array, &stdlib_aallocator, index);
         }
 
         stack->elements[stack->count - 1] = index_array;
@@ -1042,7 +1042,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
         } break;
         case FUNCTION_LITERAL: {
             // TODO make do deep copy.
-            array_append(stack, function->as_literal, &stdlib_aallocator);
+            array_append(stack, &stdlib_aallocator, function->as_literal);
             result = ERROR_OK;
         } break;
         default: assert(0 && "Encountered unexpected function type");
@@ -1130,7 +1130,12 @@ int main(void) {
     ValueArray stack = {0};
 
     FunctionArray program = {0};
-    array_append_many(&program, initial_program, ARRAY_SIZE(initial_program), &stdlib_aallocator);
+    array_append_many(
+        &program,
+        &stdlib_aallocator,
+        initial_program,
+        ARRAY_SIZE(initial_program)
+    );
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
