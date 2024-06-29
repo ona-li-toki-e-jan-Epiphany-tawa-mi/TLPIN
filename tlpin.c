@@ -4,10 +4,6 @@
 #include <stdbool.h>
 
 #include "array.h"
-const array_allocator_t stdlib_aallocator = {
-    .realloc = &realloc,
-    .free    = &free
-};
 
 typedef double float64_t;
 
@@ -596,7 +592,7 @@ void value_free(Value* value) {
             value_free(&value_array->elements[i]);
         }
 
-        ARRAY_FREE(value_array, &stdlib_aallocator);
+        ARRAY_FREE(value_array, &array_stdlib_allocator);
     } break;
 
     case VALUE_NUMBER:
@@ -619,7 +615,7 @@ Value value_deep_copy(const Value* value) {
         };
         new_value.as_array.count    = value->as_array.count;
         new_value.as_array.capacity = value->as_array.count;
-        ARRAY_REALLOCATE(&new_value.as_array, &stdlib_aallocator);
+        ARRAY_REALLOCATE(&new_value.as_array, &array_stdlib_allocator);
 
         for (size_t i = 0; i < value->as_array.count; ++i) {
             new_value.as_array.elements[i] = value_deep_copy(&value->as_array.elements[i]);
@@ -726,8 +722,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                ARRAY_APPEND(stack, &stdlib_aallocator, *a);
-                ARRAY_APPEND(stack, &stdlib_aallocator, *element);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *a);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *element);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -747,8 +743,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                ARRAY_APPEND(stack, &stdlib_aallocator, *element);
-                ARRAY_APPEND(stack, &stdlib_aallocator, *b);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *element);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *b);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -764,8 +760,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                ARRAY_APPEND(stack, &stdlib_aallocator, *a_element);
-                ARRAY_APPEND(stack, &stdlib_aallocator, *b_element);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *a_element);
+                ARRAY_APPEND(stack, &array_stdlib_allocator, *b_element);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -873,7 +869,7 @@ Error native_nanpa(ValueArray* stack) {
         for (float64_t i = 1; i <= max_index; ++i) {
             index.as_number = i;
             // TODO: make preallocate memory.
-            ARRAY_APPEND(&index_array.as_array, &stdlib_aallocator, index);
+            ARRAY_APPEND(&index_array.as_array, &array_stdlib_allocator, index);
         }
 
         stack->elements[stack->count - 1] = index_array;
@@ -902,7 +898,11 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
             result = function->as_native(stack);
         } break;
         case FUNCTION_LITERAL: {
-            ARRAY_APPEND(stack, &stdlib_aallocator, value_deep_copy(&function->as_literal));
+            ARRAY_APPEND(
+                stack,
+                &array_stdlib_allocator,
+                value_deep_copy(&function->as_literal)
+            );
             result = ERROR_OK;
         } break;
         default: assert(0 && "Unreachable");
@@ -988,7 +988,7 @@ int main(void) {
     FunctionArray program = {0};
     ARRAY_APPEND_MANY(
         &program,
-        &stdlib_aallocator,
+        &array_stdlib_allocator,
         initial_program,
         ARRAY_SIZE(initial_program)
     );
@@ -996,16 +996,16 @@ int main(void) {
         .type = VALUE_NUMBER,
         .as_number = 12
     };
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
@@ -1023,8 +1023,8 @@ int main(void) {
     for (size_t i = 0; i < stack.count; ++i) {
         value_free(&stack.elements[i]);
     }
-    ARRAY_FREE(&stack, &stdlib_aallocator);
-    ARRAY_FREE(&program, &stdlib_aallocator);
+    ARRAY_FREE(&stack, &array_stdlib_allocator);
+    ARRAY_FREE(&program, &array_stdlib_allocator);
 
     return 0;
 }

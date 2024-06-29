@@ -51,12 +51,17 @@
 
 /**
  * Allocater type to pass to array functions to perform the memory allocations.
- * In most cases, you'll just want to use realloc and free from stdlib.h.
+ * In most cases, you'll just want to use array_stdlib_allocator.
  */
 typedef struct {
     void*(*realloc)(void*, size_t);
     void(*free)(void*);
 } array_allocator_t;
+
+const array_allocator_t array_stdlib_allocator = {
+    .realloc = &realloc,
+    .free    = &free
+};
 
 
 
