@@ -607,6 +607,31 @@ void value_free(Value* value) {
     value_array_free(&value->as_array);
 }
 
+/**
+ * Performs a deep copy of the given value, recursively copying any nested
+ * arrays.
+ */
+Value value_deep_copy(const Value* value) {
+    if (VALUE_ARRAY != value->type) {
+        return *value;
+
+    } else {
+        Value new_value = {
+            .type     = VALUE_ARRAY,
+            .as_array = {0}
+        };
+        new_value.as_array.count    = value->as_array.count;
+        new_value.as_array.capacity = value->as_array.count;
+        ARRAY_REALLOCATE(&new_value.as_array, &stdlib_aallocator);
+
+        for (size_t i = 0; i < value->as_array.count; ++i) {
+            new_value.as_array.elements[i] = value_deep_copy(&value->as_array.elements[i]);
+        }
+
+        return new_value;
+    }
+}
+
 
 
 typedef enum {
@@ -874,8 +899,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
             result = function->as_native(stack);
         } break;
         case FUNCTION_LITERAL: {
-            // TODO make do deep copy.
-            ARRAY_APPEND(stack, &stdlib_aallocator, function->as_literal);
+            ARRAY_APPEND(stack, &stdlib_aallocator, value_deep_copy(&function->as_literal));
             result = ERROR_OK;
         } break;
         default: assert(0 && "Unreachable");
@@ -919,13 +943,9 @@ const Function initial_program[] = {
     {
         .type = FUNCTION_LITERAL,
         .as_literal = {
-            .type = VALUE_NUMBER,
-            .as_number = 10
+            .type = VALUE_ARRAY,
+            .as_array = {0}
         }
-    },
-    {
-        .type = FUNCTION_NATIVE,
-        .as_native = &native_nanpa
     },
     {
         .type = FUNCTION_LITERAL,
@@ -969,6 +989,20 @@ int main(void) {
         initial_program,
         ARRAY_SIZE(initial_program)
     );
+    Value test = {
+        .type = VALUE_NUMBER,
+        .as_number = 12
+    };
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
+    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &stdlib_aallocator, test);
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
