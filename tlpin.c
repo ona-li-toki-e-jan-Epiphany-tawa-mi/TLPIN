@@ -677,8 +677,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
         case VALUE_ARRAY: {
             for (size_t i = 0; i < b->as_array.count; ++i) {
                 Value* element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a);
-                array_append(stack, &stdlib_aallocator, *element);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *a);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *element);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -698,8 +698,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
         case VALUE_NUMBER: {
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* element = &a->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *element);
-                array_append(stack, &stdlib_aallocator, *b);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *element);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *b);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *element = stack->elements[stack->count - 1];
@@ -715,8 +715,8 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
             for (size_t i = 0; i < a->as_array.count; ++i) {
                 Value* a_element = &a->as_array.elements[i];
                 Value* b_element = &b->as_array.elements[i];
-                array_append(stack, &stdlib_aallocator, *a_element);
-                array_append(stack, &stdlib_aallocator, *b_element);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *a_element);
+                ARRAY_APPEND(stack, &stdlib_aallocator, *b_element);
                 Error result = native_numeric_dyadic(stack, operation);
                 if (ERROR_OK != result) return result;
                 *a_element = stack->elements[stack->count - 1];
@@ -823,7 +823,7 @@ Error native_nanpa(ValueArray* stack) {
         for (float64_t i = 1; i <= max_index; ++i) {
             index.as_number = i;
             // TODO: make preallocate memory.
-            array_append(&index_array.as_array, &stdlib_aallocator, index);
+            ARRAY_APPEND(&index_array.as_array, &stdlib_aallocator, index);
         }
 
         stack->elements[stack->count - 1] = index_array;
@@ -853,7 +853,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
         } break;
         case FUNCTION_LITERAL: {
             // TODO make do deep copy.
-            array_append(stack, &stdlib_aallocator, function->as_literal);
+            ARRAY_APPEND(stack, &stdlib_aallocator, function->as_literal);
             result = ERROR_OK;
         } break;
         default: assert(0 && "Unreachable");
@@ -941,7 +941,7 @@ int main(void) {
     ValueArray stack = {0};
 
     FunctionArray program = {0};
-    array_append_many(
+    ARRAY_APPEND_MANY(
         &program,
         &stdlib_aallocator,
         initial_program,

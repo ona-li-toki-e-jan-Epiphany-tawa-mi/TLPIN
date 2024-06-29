@@ -76,7 +76,7 @@ typedef struct {
  * @param array     (ARRAY_OF(type)*).
  * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_free(array, allocator)            \
+#define ARRAY_FREE(array, allocator)            \
     do {                                        \
         (allocator)->free((array)->elements);   \
         (array)->elements = NULL;               \
@@ -88,26 +88,26 @@ typedef struct {
  * Computes the size, in bytes, of the dynamic array's elements.
  * @param array (ARRAY_OF(type)*).
  */
-#define array_element_byte_size(array) (sizeof(*(array)->elements))
+#define ARRAY_ELEMENT_BYTE_SIZE(array) (sizeof(*(array)->elements))
 
 /**
  * Computes the size, in bytes, of the occupied portion of the dynamic array.
  * @param array (ARRAY_OF(type)*).
  */
-#define array_occupied_byte_size(array) ((array)->count * array_element_byte_size((array)))
+#define ARRAY_OCCUPIED_BYTE_SIZE(array) ((array)->count * ARRAY_ELEMENT_BYTE_SIZE((array)))
 
 /**
  * Computes the size, in bytes, of the dynamic array.
  * @param array (ARRAY_OF(type)*).
  */
-#define array_byte_size(array) ((array)->capacity * array_element_byte_size((array)))
+#define ARRAY_BYTE_SIZE(array) ((array)->capacity * ARRAY_ELEMENT_BYTE_SIZE((array)))
 
 /**
  * Swaps the contents of the dynamic arrays.
  * @param array1 (ARRAY_OF(type)*).
  * @param array2 (ARRAY_OF(type)*).
  */
-#define array_swap(array1, array2)                      \
+#define ARRAY_SWAP(array1, array2)                      \
     do {                                                \
         void* array1_elements = (array1)->elements;     \
         (array1)->elements    = (array2)->elements;     \
@@ -127,11 +127,11 @@ typedef struct {
  * @param array     (ARRAY_OF(type)*).
  * @param allocator (array_allocator_t*) - memory allocator to use.
  */
-#define array_reallocate(array, allocator)                                      \
+#define ARRAY_REALLOCATE(array, allocator)                                      \
     do {                                                                        \
         (array)->elements = (allocator)->realloc(                               \
             (array)->elements,                                                  \
-            array_byte_size((array))                                            \
+            ARRAY_BYTE_SIZE((array))                                            \
         );                                                                      \
         if (NULL == (array)->elements) {                                        \
             (void)fputs(                                                        \
@@ -150,13 +150,13 @@ typedef struct {
  * @param allocator (array_allocator_t*) - memory allocator to use.
  * @param size      (size_t).
  */
-#define array_resize(array, allocator, size)        \
+#define ARRAY_RESIZE(array, allocator, size)        \
     do {                                            \
         if ((size) != (array)->capacity) {          \
             if ((size) < (array)->count)            \
                 (array)->count = (size);            \
             (array)->capacity = (size);             \
-            array_reallocate((array), (allocator)); \
+            ARRAY_REALLOCATE((array), (allocator)); \
         }                                           \
     } while (0)
 
@@ -166,10 +166,10 @@ typedef struct {
  * @param allocator (array_allocator_t*) - memory allocator to use.
  * @param size      (size_t).
  */
-#define array_expand(array, allocator, size)      \
+#define ARRAY_EXPAND(array, allocator, size)      \
     do {                                          \
         (array)->capacity += (size);              \
-        array_reallocate((array), (allocator));   \
+        ARRAY_REALLOCATE((array), (allocator));   \
     } while (0)
 
 /**
@@ -178,14 +178,14 @@ typedef struct {
  * @param allocator (array_allocator_t*) - memory allocator to use.
  * @param element   (type).
  */
-#define array_append(array, allocator, element)                                \
+#define ARRAY_APPEND(array, allocator, element)                                \
     do {                                                                       \
         if ((array)->count >= (array)->capacity) {                             \
             (array)->capacity = 0 == (array)->capacity                         \
                               ? ARRAY_INITIAL_CAPACITY                         \
                               : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity; \
                                                                                \
-            array_reallocate((array), (allocator));                            \
+            ARRAY_REALLOCATE((array), (allocator));                            \
         }                                                                      \
         (array)->elements[(array)->count++] = (element);                       \
     } while (0)
@@ -197,7 +197,7 @@ typedef struct {
  * @param buffer        (type*).
  * @param element_count (size_t).
  */
-#define array_append_many(array, allocator, buffer, element_count)          \
+#define ARRAY_APPEND_MANY(array, allocator, buffer, element_count)          \
     do {                                                                    \
         if ((element_count) + (array)->count >= (array)->capacity) {        \
             if (0 == (array)->capacity) {                                   \
@@ -206,7 +206,7 @@ typedef struct {
             while ((element_count) + (array)->count >= (array)->capacity) { \
                 (array)->capacity *= ARRAY_CAPACITY_MULTIPLIER;             \
             }                                                               \
-            array_reallocate((array), (allocator));                         \
+            ARRAY_REALLOCATE((array), (allocator));                         \
         }                                                                   \
                                                                             \
         (void)memcpy(                                                       \
