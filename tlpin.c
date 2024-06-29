@@ -659,6 +659,27 @@ struct Function {
     };
 };
 
+/**
+ * Frees the underlying memory of the function, if there is any.
+ */
+void function_free(Function* function) {
+    switch (function->type) {
+    case FUNCTION_DEFUN: {
+        for (size_t i = 0; i < function->as_defun.count; ++i) {
+            function_free(&function->as_defun.elements[i]);
+        }
+    } break;
+
+    case FUNCTION_LITERAL: {
+        value_free(&function->as_literal);
+    } break;
+
+    case FUNCTION_NATIVE: break;
+
+    default: assert(0 && "Unreachable");
+    };
+}
+
 
 
 /**
@@ -1024,6 +1045,9 @@ int main(void) {
         value_free(&stack.elements[i]);
     }
     ARRAY_FREE(&stack, &array_stdlib_allocator);
+    for (size_t i = 0; i < program.count; ++i) {
+        function_free(&program.elements[i]);
+    }
     ARRAY_FREE(&program, &array_stdlib_allocator);
 
     return 0;
