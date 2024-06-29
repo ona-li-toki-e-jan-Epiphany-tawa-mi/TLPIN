@@ -590,7 +590,8 @@ struct Value {
 typedef enum {
     ERROR_OK,
     ERROR_DOMAIN,
-    ERROR_SHAPE
+    ERROR_SHAPE,
+    ERROR_STACK_UNDERFLOW
 } Error;
 
 typedef enum {
@@ -660,7 +661,7 @@ bool compare_array_shapes(const ValueArray* array1, const ValueArray* array2) {
  * 2, else shape error.
  */
 Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,float64_t)) {
-    assert(stack->count >= 2 && "Unexpected stack underflow");
+    if (stack->count < 2) return ERROR_STACK_UNDERFLOW;
 
     Value* a = &stack->elements[stack->count - 2];
     Value* b = &stack->elements[stack->count - 1];
@@ -686,7 +687,7 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
             *a = *b;
             --stack->count;
         } break;
-        default: assert(0 && "Encountered unexpected value type");
+        default: assert(0 && "Unreachable");
         }
     } break;
 
@@ -723,11 +724,11 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
             }
             --stack->count;
         } break;
-        default: assert(0 && "Encountered unexpected value type");
+        default: assert(0 && "Unreachable");
         }
     } break;
 
-    default: assert(0 && "Encountered unexpected value type");
+    default: assert(0 && "Unreachable");
     }
 
     return ERROR_OK;
@@ -804,7 +805,7 @@ Error native_kipisi(ValueArray* stack) {
  * On array - TODO.
  */
 Error native_nanpa(ValueArray* stack) {
-    assert(stack->count >= 1 && "Unexpected stack underflow");
+    if (stack->count < 1) return ERROR_STACK_UNDERFLOW;
 
     Value* a = &stack->elements[stack->count - 1];
 
@@ -832,7 +833,7 @@ Error native_nanpa(ValueArray* stack) {
 
     case VALUE_ARRAY: assert(0 && "TODO");
 
-    default: assert(0 && "Encountered unexpected value type");
+    default: assert(0 && "Unreachable");
     }
 
     return ERROR_OK;
@@ -855,7 +856,7 @@ Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
             array_append(stack, &stdlib_aallocator, function->as_literal);
             result = ERROR_OK;
         } break;
-        default: assert(0 && "Encountered unexpected function type");
+        default: assert(0 && "Unreachable");
         };
 
         if (ERROR_OK != result) {
@@ -885,7 +886,7 @@ void dump_stack(const ValueArray* stack) {
             (void)printf("} ");
         } break;
 
-        default: assert(0 && "Encountered unexpected value type");
+        default: assert(0 && "Unreachable");
         };
     }
 }
@@ -949,10 +950,11 @@ int main(void) {
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
-    case ERROR_DOMAIN: fprintf(stderr, "DOMAIN ERROR\n"); exit(1);
-    case ERROR_SHAPE:  fprintf(stderr, "SHAPE ERROR\n");  exit(1);
+    case ERROR_DOMAIN:          fprintf(stderr, "DOMAIN ERROR\n");     exit(1);
+    case ERROR_SHAPE:           fprintf(stderr, "SHAPE ERROR\n");      exit(1);
+    case ERROR_STACK_UNDERFLOW: fprintf(stderr, "STACK UNDERFLOW\n");  exit(1);
     case ERROR_OK:     break;
-    default:           assert(0 && "Encountered unexpected error type");
+    default:           assert(0 && "Unreachable");
     }
 
     (void)printf("Stack dump: ");
