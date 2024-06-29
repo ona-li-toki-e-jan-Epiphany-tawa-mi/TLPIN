@@ -33,9 +33,9 @@
  *   on resizing. Has default value.
  */
 
-#include <stdio.h>  // For fputs.
-#include <stdlib.h> // For exit.
-#include <string.h> // For memcpy.
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 
 
@@ -158,6 +158,45 @@ typedef struct {
             (array)->capacity = (size);             \
             ARRAY_REALLOCATE((array), (allocator)); \
         }                                           \
+    } while (0)
+
+/**
+ * Makes an identical copy of the source array with the same size and capacity,
+ * but with it's own copy of the memory.
+ * @param array_from (ARRAY_OF(type)*).
+ * @param allocator  (array_allocator_t*) - memory allocator to use.
+ * @param array_to   (ARRAY_OF(type)*).
+ */
+#define ARRAY_COPY(array_from, allocator, array_to)    \
+    do {                                               \
+        (array_to)->count    = (array_from)->count;    \
+        (array_to)->capacity = (array_from)->capacity; \
+        ARRAY_REALLOCATE((array_to), (allocator));     \
+        (void)memcpy(                                  \
+            (array_to)->elements,                      \
+            (array_from)->elements,                    \
+            ARRAY_OCCUPIED_BYTE_SIZE(array_from)       \
+        );                                             \
+    } while (0)
+
+/**
+ * Makes an identical copy of the source array with the same size, but the
+ * capacity is trimmed to the occupied portion and with it's own copy of the
+ * memory.
+ * @param array_from (ARRAY_OF(type)*).
+ * @param allocator  (array_allocator_t*) - memory allocator to use.
+ * @param array_to   (ARRAY_OF(type)*).
+ */
+#define ARRAY_COPY_TRIM(array_from, allocator, array_to) \
+    do {                                                     \
+        (array_to)->count    = (array_from)->count;          \
+        (array_to)->capacity = (array_from)->count;          \
+        ARRAY_REALLOCATE((array_to), (allocator));           \
+        (void)memcpy(                                        \
+            (array_to)->elements,                            \
+            (array_from)->elements,                          \
+            ARRAY_OCCUPIED_BYTE_SIZE(array_from)             \
+        );                                                   \
     } while (0)
 
 /**
