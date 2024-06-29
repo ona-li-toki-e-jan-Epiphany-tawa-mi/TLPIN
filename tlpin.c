@@ -585,6 +585,28 @@ struct Value {
     };
 };
 
+/**
+ * Frees the underlying memory of the value array.
+ */
+void value_array_free(ValueArray* value_array) {
+    for (size_t i = 0; i < value_array->count; ++i) {
+        Value* element = &value_array->elements[i];
+        if (VALUE_ARRAY == element->type) {
+            value_array_free(&element->as_array);
+        }
+    }
+
+    ARRAY_FREE(value_array, &stdlib_aallocator);
+}
+
+/**
+ * Frees the underlying memory of the value, if there is any.
+ */
+void value_free(Value* value) {
+    if (VALUE_ARRAY != value->type) return;
+    value_array_free(&value->as_array);
+}
+
 
 
 typedef enum {
@@ -646,7 +668,6 @@ bool compare_array_shapes(const ValueArray* array1, const ValueArray* array2) {
 
 
 
-// TODO Come up with proper stack pop method that frees arrays when popped.
 /**
  * Performs a dyadic native function that works with numbers.
  *
@@ -722,6 +743,7 @@ Error native_numeric_dyadic(ValueArray* stack, float64_t(*operation)(float64_t,f
                 *a_element = stack->elements[stack->count - 1];
                 --stack->count;
             }
+            value_array_free(&b->as_array);
             --stack->count;
         } break;
         default: assert(0 && "Unreachable");
@@ -959,6 +981,13 @@ int main(void) {
 
     (void)printf("Stack dump: ");
     dump_stack(&stack);
+
+    // Cleanup.
+    for (size_t i = 0; i < stack.count; ++i) {
+        value_free(&stack.elements[i]);
+    }
+    ARRAY_FREE(&stack, &stdlib_aallocator);
+    ARRAY_FREE(&program, &stdlib_aallocator);
 
     return 0;
 }
