@@ -589,14 +589,21 @@ struct Value {
  * Frees the underlying memory of the value, if there is any.
  */
 void value_free(Value* value) {
-    if (VALUE_ARRAY != value->type) return;
+    switch (value->type) {
+    case VALUE_ARRAY: {
+        ValueArray* value_array = &value->as_array;
+        for (size_t i = 0; i < value_array->count; ++i) {
+            value_free(&value_array->elements[i]);
+        }
 
-    ValueArray* value_array = &value->as_array;
-    for (size_t i = 0; i < value_array->count; ++i) {
-        value_free(&value_array->elements[i]);
+        ARRAY_FREE(value_array, &stdlib_aallocator);
+    } break;
+
+    case VALUE_NUMBER:
+    case VALUE_CHARACTER: break;
+
+    default: assert(0 && "Unreachable");
     }
-
-    ARRAY_FREE(value_array, &stdlib_aallocator);
 }
 
 /**
@@ -604,10 +611,8 @@ void value_free(Value* value) {
  * arrays.
  */
 Value value_deep_copy(const Value* value) {
-    if (VALUE_ARRAY != value->type) {
-        return *value;
-
-    } else {
+    switch (value->type) {
+    case VALUE_ARRAY: {
         Value new_value = {
             .type     = VALUE_ARRAY,
             .as_array = {0}
@@ -621,6 +626,12 @@ Value value_deep_copy(const Value* value) {
         }
 
         return new_value;
+    } break;
+
+    case VALUE_NUMBER:
+    case VALUE_CHARACTER: return *value;
+
+    default: assert(0 && "Unreachable");
     }
 }
 
