@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# Rrror on unset variables.
+# Error on unset variables.
 set -u
 
 
@@ -13,7 +13,7 @@ EXECUTABLE=${SOURCE%.c}
 
 
 
-# Displays commands
+# Displays commands.
 set -x
 
 # shellcheck disable=SC2086 # We want word spliting.
