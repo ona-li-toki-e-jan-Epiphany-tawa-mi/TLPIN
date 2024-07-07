@@ -906,6 +906,90 @@ Error native_nanpa(ValueArray* stack) {
     return ERROR_OK;
 }
 
+/**
+ * Concatenate - dyadic.
+ *
+ * On *,* - joins the elements/values into a single array.
+ */
+Error native_olin(ValueArray* stack) {
+    if (stack->count < 2) return ERROR_STACK_UNDERFLOW;
+
+    Value* a = &stack->elements[stack->count - 2];
+    Value* b = &stack->elements[stack->count - 1];
+
+    switch (a->type) {
+    case VALUE_NUMBER: {
+        switch (b->type) {
+        case VALUE_NUMBER:
+        case VALUE_CHARACTER: {
+            Value result = {
+                .type     = VALUE_ARRAY,
+                .as_array = {0}
+            };
+            ARRAY_APPEND(&result.as_array, &array_stdlib_allocator, *a);
+            ARRAY_APPEND(&result.as_array, &array_stdlib_allocator, *b);
+            *a = result;
+            --stack->count;
+        } break;
+
+        case VALUE_ARRAY: {
+            ARRAY_PREPEND(&b->as_array, &array_stdlib_allocator, *a);
+            *a = *b;
+            --stack->count;
+        } break;
+
+        default: assert(0 && "Unreachable");
+        }
+    } break;
+
+    case VALUE_CHARACTER: {
+        switch (b->type) {
+        case VALUE_NUMBER:
+        case VALUE_CHARACTER: {
+            Value result = {
+                .type     = VALUE_ARRAY,
+                .as_array = {0}
+            };
+            ARRAY_APPEND(&result.as_array, &array_stdlib_allocator, *a);
+            ARRAY_APPEND(&result.as_array, &array_stdlib_allocator, *b);
+            *a = result;
+            --stack->count;
+        } break;
+
+        case VALUE_ARRAY: {
+            ARRAY_PREPEND(&b->as_array, &array_stdlib_allocator, *a);
+            *a = *b;
+            --stack->count;
+        } break;
+
+        default: assert(0 && "Unreachable");
+        }
+    } break;
+
+    case VALUE_ARRAY: {
+        switch (b->type) {
+        case VALUE_NUMBER:
+        case VALUE_CHARACTER: {
+            ARRAY_APPEND(&a->as_array, &array_stdlib_allocator, *b);
+            --stack->count;
+        } break;
+
+        case VALUE_ARRAY: {
+            ARRAY_CONCATENATE(&b->as_array, &array_stdlib_allocator, &a->as_array);
+            ARRAY_FREE(&b->as_array, &array_stdlib_allocator);
+            --stack->count;
+        } break;
+
+        default: assert(0 && "Unreachable");
+        }
+    } break;
+
+    default: assert(0 && "Unreachable");
+    }
+
+    return ERROR_OK;
+}
+
 Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
     for (size_t i = 0; i < functions->count; ++i) {
         const Function* function = &functions->elements[i];
@@ -967,8 +1051,8 @@ const Function initial_program[] = {
     {
         .type = FUNCTION_LITERAL,
         .as_literal = {
-            .type = VALUE_ARRAY,
-            .as_array = {0}
+            .type = VALUE_CHARACTER,
+            .as_character = 'c'
         }
     },
     {
@@ -978,13 +1062,20 @@ const Function initial_program[] = {
             .as_number = 10
         }
     },
+    //{
+    //    .type = FUNCTION_LITERAL,
+    //    .as_literal = {
+    //        .type = VALUE_ARRAY,
+    //        .as_array = {0}
+    //    }
+    //},
+    //{
+    //    .type = FUNCTION_NATIVE,
+    //    .as_native = &native_nanpa
+    //},
     {
         .type = FUNCTION_NATIVE,
-        .as_native = &native_nanpa
-    },
-    {
-        .type = FUNCTION_NATIVE,
-        .as_native = &native_pona
+        .as_native = &native_olin
     }
 };
 
@@ -1013,20 +1104,20 @@ int main(void) {
         initial_program,
         ARRAY_SIZE(initial_program)
     );
-    Value test = {
-        .type = VALUE_NUMBER,
-        .as_number = 12
-    };
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
-    ARRAY_APPEND(&program.elements[0].as_literal.as_array, &array_stdlib_allocator, test);
+    /* Value test = { */
+    /*     .type = VALUE_NUMBER, */
+    /*     .as_number = 12 */
+    /* }; */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
+    /* ARRAY_APPEND(&program.elements[1].as_literal.as_array, &array_stdlib_allocator, test); */
 
     Error result = execute_functions(&program, &stack);
     switch (result) {
