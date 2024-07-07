@@ -260,3 +260,41 @@ const array_allocator_t array_stdlib_allocator = {
          );                                                                 \
         (array)->count += (element_count);                                  \
     } while (0)
+
+/**
+ * Appends the elements of the source array to the destination array.
+ * @param array_from (ARRAY_OF(type)*).
+ * @param allocator  (array_allocator_t*) - memory allocator to use.
+ * @param array_to   (ARRAY_OF(type)*).
+ */
+#define ARRAY_CONCATENATE(array_from, allocator, array_to) \
+    ARRAY_APPEND_MANY(                                     \
+        (array_to),                                        \
+        (allocator),                                       \
+        (array_from)->elements,                            \
+        (array_from)->count                                \
+    )
+
+/**
+ * Prepends an element to the dynamic array.
+ * @param array     (ARRAY_OF(type)*).
+ * @param allocator (array_allocator_t*) - memory allocator to use.
+ * @param element   (type).
+ */
+#define ARRAY_PREPEND(array, allocator, element)                               \
+    do {                                                                       \
+        if ((array)->count >= (array)->capacity) {                             \
+            (array)->capacity = 0 == (array)->capacity                         \
+                              ? ARRAY_INITIAL_CAPACITY                         \
+                              : ARRAY_CAPACITY_MULTIPLIER * (array)->capacity; \
+                                                                               \
+            ARRAY_REALLOCATE((array), (allocator));                            \
+        }                                                                      \
+        (void)memmove(                                                         \
+             (array)->elements+1,                                              \
+             (array)->elements,                                                \
+             ARRAY_OCCUPIED_BYTE_SIZE((array))                                 \
+        );                                                                     \
+        ++(array)->count;                                                      \
+        (array)->elements[0] = (element);                                      \
+    } while (0)
