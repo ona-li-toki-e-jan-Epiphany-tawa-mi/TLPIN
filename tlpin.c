@@ -990,6 +990,37 @@ Error native_olin(ValueArray* stack) {
     return ERROR_OK;
 }
 
+/**
+ * Call command - monadic.
+ *
+ * On character array - call the system shell with the supplied text as the
+ * command.
+ * On *,* - domain error.
+ */
+Error native_o(ValueArray* stack) {
+    if (stack->count < 1) return ERROR_STACK_UNDERFLOW;
+
+    Value* a = &stack->elements[stack->count - 1];
+    if (VALUE_ARRAY != a->type) return ERROR_DOMAIN;
+
+    char command[a->as_array.count + 1];
+    command[a->as_array.count] = '\0';
+
+    for (size_t i = 0; i < a->as_array.count; ++i) {
+        Value* element = &a->as_array.elements[i];
+        if (VALUE_CHARACTER != element->type) {
+            return ERROR_DOMAIN;
+        }
+
+        command[i] = (char)element->as_character;
+    }
+
+    system(command);
+
+    --stack->count;
+    return ERROR_OK;
+}
+
 Error execute_functions(const FunctionArray* functions, ValueArray* stack) {
     for (size_t i = 0; i < functions->count; ++i) {
         const Function* function = &functions->elements[i];
@@ -1052,30 +1083,23 @@ const Function initial_program[] = {
         .type = FUNCTION_LITERAL,
         .as_literal = {
             .type = VALUE_CHARACTER,
-            .as_character = 'c'
+            .as_character = 'l'
         }
     },
     {
         .type = FUNCTION_LITERAL,
         .as_literal = {
-            .type = VALUE_NUMBER,
-            .as_number = 10
+            .type = VALUE_CHARACTER,
+            .as_character = 's'
         }
     },
-    //{
-    //    .type = FUNCTION_LITERAL,
-    //    .as_literal = {
-    //        .type = VALUE_ARRAY,
-    //        .as_array = {0}
-    //    }
-    //},
-    //{
-    //    .type = FUNCTION_NATIVE,
-    //    .as_native = &native_nanpa
-    //},
     {
         .type = FUNCTION_NATIVE,
         .as_native = &native_olin
+    },
+    {
+        .type = FUNCTION_NATIVE,
+        .as_native = &native_o
     }
 };
 
